@@ -3,7 +3,7 @@
 import type { AcceptanceStatus } from '@lobechat/types';
 import { Center, Flexbox, Icon } from '@lobehub/ui';
 import type { DropdownItem } from '@lobehub/ui/base-ui';
-import { ActionIcon, Checkbox, confirmModal, DropdownMenu, toast } from '@lobehub/ui/base-ui';
+import { ActionIcon, Checkbox, DropdownMenu, toast } from '@lobehub/ui/base-ui';
 import { createStaticStyles, cssVar } from 'antd-style';
 import dayjs from 'dayjs';
 import {
@@ -33,6 +33,7 @@ import type { AcceptanceListItem } from '@/services/verify';
 import { verifyService } from '@/services/verify';
 
 import { getAcceptanceStatusActions } from '../Viewer/statusActions';
+import { openAcceptanceDeleteConfirm } from './AcceptanceDeleteConfirm';
 import { openMergeAcceptanceModal } from './MergeAcceptanceModal';
 import { useAcceptanceProjectMenuItem } from './useAcceptanceProjectMenuItem';
 
@@ -225,12 +226,10 @@ const AcceptanceRow = memo<{
   };
 
   const removeAcceptance = () => {
-    confirmModal({
-      cancelText: t('actions.cancel'),
-      content: t('acceptance.workspace.deleteConfirmDescription', { title }),
-      okButtonProps: { danger: true },
-      okText: t('actions.delete'),
-      onOk: async () => {
+    openAcceptanceDeleteConfirm({
+      ids: [item.id],
+      title,
+      onDelete: async () => {
         setMutating(true);
         try {
           await verifyService.deleteAcceptance(item.id);
@@ -244,7 +243,6 @@ const AcceptanceRow = memo<{
           setMutating(false);
         }
       },
-      title: t('acceptance.workspace.deleteConfirmTitle'),
     });
   };
 

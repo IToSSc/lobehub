@@ -38,6 +38,10 @@ export type AcceptanceListItem = Awaited<
 
 export type AcceptanceListPage = Awaited<ReturnType<typeof lambdaClient.acceptance.listPage.query>>;
 
+export type AcceptancePurgePreview = Awaited<
+  ReturnType<typeof lambdaClient.acceptance.purgePreview.query>
+>;
+
 /** The list's status split, shared by the flat and paged reads. */
 export type AcceptanceListFilter = 'active' | 'all' | 'completed';
 
@@ -343,7 +347,9 @@ export class VerifyService {
   mergeAcceptance = (sourceId: string, targetId: string) =>
     lambdaClient.acceptance.merge.mutate({ sourceId, targetId });
 
-  /** Delete the acceptance aggregate (its round reports detach, not delete). */
+  getAcceptancePurgePreview = (id: string) => lambdaClient.acceptance.purgePreview.query({ id });
+
+  /** Delete the acceptance aggregate together with its rounds and their evidence files. */
   deleteAcceptance = (id: string) => lambdaClient.acceptance.remove.mutate({ id });
 
   /** Batch twin of `deleteAcceptance` for the list's multi-selection. */
