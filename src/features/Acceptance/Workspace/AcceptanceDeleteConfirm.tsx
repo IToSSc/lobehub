@@ -115,10 +115,14 @@ const DeleteConfirmContent = memo<DeleteConfirmProps>(({ ids, onDelete, title })
 
   return (
     <Flexbox gap={12}>
-      <Text fontSize={13} type={'secondary'}>
-        {batch
-          ? translate('acceptance.workspace.batch.deleteConfirmDescription', { count: ids.length })
-          : translate('acceptance.workspace.deleteConfirmDescription', { title })}
+      <Text fontSize={13} type={purge ? 'danger' : 'secondary'}>
+        {purge
+          ? translate('acceptance.workspace.deleteConfirm.purgeWarning')
+          : batch
+            ? translate('acceptance.workspace.batch.deleteConfirmDescription', {
+                count: ids.length,
+              })
+            : translate('acceptance.workspace.deleteConfirmDescription', { title })}
       </Text>
       <Checkbox checked={purge} onChange={setPurge}>
         {size
@@ -141,11 +145,6 @@ const DeleteConfirmContent = memo<DeleteConfirmProps>(({ ids, onDelete, title })
           <dt>{translate('acceptance.workspace.deleteConfirm.space')}</dt>
           <dd>{formatSize(preview.bytes)}</dd>
         </dl>
-      )}
-      {purge && (
-        <Text fontSize={12} type={'danger'}>
-          {translate('acceptance.workspace.deleteConfirm.purgeWarning')}
-        </Text>
       )}
       <Flexbox horizontal gap={8} justify={'flex-end'}>
         <Button disabled={pending} onClick={close}>
