@@ -10900,6 +10900,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "metadata": {
+          "name": "metadata",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
         "friendly_name": {
           "name": "friendly_name",
           "type": "text",

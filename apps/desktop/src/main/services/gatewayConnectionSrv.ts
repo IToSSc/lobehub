@@ -106,6 +106,7 @@ interface DeviceRegistrar {
     deviceId: string;
     hostname: string;
     identitySource: IdentitySource;
+    metadata: Record<string, string>;
     platform: string;
   }): Promise<void>;
 }
@@ -386,6 +387,12 @@ export default class GatewayConnectionService extends ServiceModule {
         deviceId: identity.deviceId,
         hostname: os.hostname(),
         identitySource: identity.identitySource,
+        metadata: {
+          appVersion: app.getVersion(),
+          electron: process.versions.electron,
+          node: process.versions.node,
+          osRelease: os.release(),
+        },
         platform: process.platform,
       }).catch((err) => {
         logger.warn(`Device registration failed (non-fatal): ${(err as Error).message}`);
