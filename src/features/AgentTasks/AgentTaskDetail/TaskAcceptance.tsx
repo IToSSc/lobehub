@@ -202,13 +202,13 @@ const TaskAcceptance = memo<TaskAcceptanceProps>(({ variant = 'default' }) => {
     openAcceptanceDeleteConfirm({
       ids: [acceptanceSubject.id],
       title: taskName || requirement || t('taskDetail.acceptance.untitled'),
-      onDelete: async () => {
+      onDelete: async (purge) => {
         await useTaskStore.getState().updateVerifyConfig(taskId, {
           enabled: false,
           requirement: null,
           verifyCriteriaIds: null,
         });
-        await verifyService.deleteAcceptance(acceptanceSubject.id);
+        await verifyService.deleteAcceptance(acceptanceSubject.id, purge);
         await mutateSubject();
       },
     });

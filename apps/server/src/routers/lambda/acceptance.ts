@@ -1401,21 +1401,27 @@ export const acceptanceRouter = router({
     }),
 
   /**
-   * Delete the acceptance aggregate together with its rounds and the evidence
+   * Delete the acceptance aggregate. By default its chained verify runs detach
+   * (acceptance_id → null via the FK's `set null`) so the individual round
+   * reports stay reachable; `purge` also removes the rounds and the evidence
    * files only they referenced.
    */
   remove: acceptanceWriteProcedure
-    .input(z.object({ id: z.string() }))
+    .input(z.object({ id: z.string(), purge: z.boolean().optional() }))
     .mutation(async ({ ctx, input }) => {
-      const { acceptance } = await resolveAcceptanceForWrite(ctx, input.id);
+      const { acceptance, service } = await resolveAcceptanceForWrite(ctx, input.id);
 
-      await purgeAcceptance(
-        ctx.serverDB,
-        new FileService(ctx.serverDB, ctx.userId, ctx.workspaceId ?? undefined),
-        acceptance.userId,
-        acceptance.workspaceId ?? undefined,
-        acceptance.id,
-      );
+      if (input.purge) {
+        await purgeAcceptance(
+          ctx.serverDB,
+          new FileService(ctx.serverDB, ctx.userId, ctx.workspaceId ?? undefined),
+          acceptance.userId,
+          acceptance.workspaceId ?? undefined,
+          acceptance.id,
+        );
+      } else {
+        await service.acceptanceModel.delete(acceptance.id);
+      }
       return { success: true };
     }),
 
@@ -1425,7 +1431,12 @@ export const acceptanceRouter = router({
    * selection still goes.
    */
   removeBatch: acceptanceWriteProcedure
-    .input(z.object({ ids: z.array(z.string()).min(1).max(ACCEPTANCE_BATCH_LIMIT) }))
+    .input(
+      z.object({
+        ids: z.array(z.string()).min(1).max(ACCEPTANCE_BATCH_LIMIT),
+        purge: z.boolean().optional(),
+      }),
+    )
     .mutation(async ({ ctx, input }) => {
       const failedIds: string[] = [];
       let deleted = 0;
@@ -1433,14 +1444,18 @@ export const acceptanceRouter = router({
 
       for (const id of new Set(input.ids)) {
         try {
-          const { acceptance } = await resolveAcceptanceForWrite(ctx, id);
-          await purgeAcceptance(
-            ctx.serverDB,
-            fileService,
-            acceptance.userId,
-            acceptance.workspaceId ?? undefined,
-            acceptance.id,
-          );
+          const { acceptance, service } = await resolveAcceptanceForWrite(ctx, id);
+          if (input.purge) {
+            await purgeAcceptance(
+              ctx.serverDB,
+              fileService,
+              acceptance.userId,
+              acceptance.workspaceId ?? undefined,
+              acceptance.id,
+            );
+          } else {
+            await service.acceptanceModel.delete(acceptance.id);
+          }
           deleted += 1;
         } catch (error) {
           console.error('[acceptance] batch delete failed for %s', id, error);

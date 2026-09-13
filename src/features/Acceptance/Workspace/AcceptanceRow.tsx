@@ -229,10 +229,10 @@ const AcceptanceRow = memo<{
     openAcceptanceDeleteConfirm({
       ids: [item.id],
       title,
-      onDelete: async () => {
+      onDelete: async (purge) => {
         setMutating(true);
         try {
-          await verifyService.deleteAcceptance(item.id);
+          await verifyService.deleteAcceptance(item.id, purge);
           if (active) navigate('/acceptance', { replace: true });
           await onChanged();
           toast.success(t('acceptance.workspace.deleteSuccess'));

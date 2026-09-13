@@ -2,7 +2,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { type LobeChatDatabase } from '@lobechat/database';
-import { acceptances, workspaceMembers, workspaces } from '@lobechat/database/schemas';
+import { acceptances, verifyRuns, workspaceMembers, workspaces } from '@lobechat/database/schemas';
 import { getTestDB } from '@lobechat/database/test-utils';
 import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -118,8 +118,25 @@ describe('acceptanceRouter purge', () => {
   });
 
   describe('remove', () => {
-    it('purges through the acceptance scope instead of a bare delete', async () => {
+    it('detaches the rounds without purging by default', async () => {
+      const [run] = await serverDB
+        .insert(verifyRuns)
+        .values({ acceptanceId: workspaceRowId, roundIndex: 1, userId: ownerId, workspaceId })
+        .returning();
+
       await caller(ownerId).remove({ id: workspaceRowId });
+
+      expect(purgeMocks.purgeAcceptance).not.toHaveBeenCalled();
+      expect(
+        await serverDB.query.acceptances.findFirst({ where: eq(acceptances.id, workspaceRowId) }),
+      ).toBeUndefined();
+      expect(
+        await serverDB.query.verifyRuns.findFirst({ where: eq(verifyRuns.id, run.id) }),
+      ).toMatchObject({ acceptanceId: null });
+    });
+
+    it('purges through the acceptance scope when asked', async () => {
+      await caller(ownerId).remove({ id: workspaceRowId, purge: true });
 
       expect(purgeMocks.purgeAcceptance).toHaveBeenCalledWith(
         expect.anything(),
@@ -130,7 +147,7 @@ describe('acceptanceRouter purge', () => {
       );
     });
 
-    it('purges each manageable row in a batch and collects the rest', async () => {
+    it('detaches each manageable row in a batch by default and collects the rest', async () => {
       vi.spyOn(console, 'error').mockImplementation(() => {});
       const [foreign] = await serverDB
         .insert(acceptances)
@@ -138,6 +155,22 @@ describe('acceptanceRouter purge', () => {
         .returning();
 
       const res = await caller(ownerId).removeBatch({ ids: [personalId, foreign.id] });
+
+      expect(res).toEqual({ deleted: 1, failedIds: [foreign.id] });
+      expect(purgeMocks.purgeAcceptance).not.toHaveBeenCalled();
+      expect(
+        await serverDB.query.acceptances.findFirst({ where: eq(acceptances.id, personalId) }),
+      ).toBeUndefined();
+    });
+
+    it('purges each manageable row in a batch when asked', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      const [foreign] = await serverDB
+        .insert(acceptances)
+        .values({ subjectId: randomUUID(), subjectType: 'standalone', userId: strangerId })
+        .returning();
+
+      const res = await caller(ownerId).removeBatch({ ids: [personalId, foreign.id], purge: true });
 
       expect(res).toEqual({ deleted: 1, failedIds: [foreign.id] });
       expect(purgeMocks.purgeAcceptance).toHaveBeenCalledTimes(1);

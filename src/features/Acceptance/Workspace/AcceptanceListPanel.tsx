@@ -537,7 +537,7 @@ const AcceptanceListPanel = memo<AcceptanceListPanelProps>(
 
       openAcceptanceDeleteConfirm({
         ids: targets,
-        onDelete: async () => {
+        onDelete: async (purge) => {
           setBatchPending(true);
           try {
             // `allSettled`, never `all`: a rejected chunk must not hide the ones
@@ -546,7 +546,7 @@ const AcceptanceListPanel = memo<AcceptanceListPanelProps>(
             // chunk had just removed.
             const chunks = chunkAcceptanceBatch(targets);
             const settled = await Promise.allSettled(
-              chunks.map((chunk) => verifyService.deleteAcceptanceBatch(chunk)),
+              chunks.map((chunk) => verifyService.deleteAcceptanceBatch(chunk, purge)),
             );
 
             let deleted = 0;

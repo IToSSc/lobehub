@@ -133,7 +133,7 @@ vi.mock('@/features/Acceptance/Viewer/Review/AcceptanceDecision', () => ({
 
 vi.mock('@/services/verify', () => ({
   verifyService: {
-    deleteAcceptance: (id: string) => mocks.deleteAcceptance(id),
+    deleteAcceptance: (id: string, purge?: boolean) => mocks.deleteAcceptance(id, purge),
     reviewChecks: vi.fn(),
   },
 }));
@@ -361,10 +361,12 @@ describe('TaskAcceptance', () => {
     expect(mocks.openDeleteConfirm).toHaveBeenCalledTimes(1);
     expect(mocks.deleteAcceptance).not.toHaveBeenCalled();
 
-    const opts = mocks.openDeleteConfirm.mock.calls[0][0] as { onDelete: () => Promise<void> };
-    await opts.onDelete();
+    const opts = mocks.openDeleteConfirm.mock.calls[0][0] as {
+      onDelete: (purge: boolean) => Promise<void>;
+    };
+    await opts.onDelete(true);
 
-    expect(mocks.deleteAcceptance).toHaveBeenCalledWith('acceptance-1');
+    expect(mocks.deleteAcceptance).toHaveBeenCalledWith('acceptance-1', true);
     expect(mocks.updateVerifyConfig).toHaveBeenCalledWith('T-231', {
       enabled: false,
       requirement: null,
@@ -390,8 +392,10 @@ describe('TaskAcceptance', () => {
     render(<TaskAcceptance />);
 
     fireEvent.click(screen.getByText('taskDetail.acceptance.remove'));
-    const opts = mocks.openDeleteConfirm.mock.calls[0][0] as { onDelete: () => Promise<void> };
-    await expect(opts.onDelete()).rejects.toThrow('config write failed');
+    const opts = mocks.openDeleteConfirm.mock.calls[0][0] as {
+      onDelete: (purge: boolean) => Promise<void>;
+    };
+    await expect(opts.onDelete(false)).rejects.toThrow('config write failed');
 
     expect(mocks.deleteAcceptance).not.toHaveBeenCalled();
     expect(mocks.mutateSubject).not.toHaveBeenCalled();

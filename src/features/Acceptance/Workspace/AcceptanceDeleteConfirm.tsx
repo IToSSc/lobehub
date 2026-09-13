@@ -3,6 +3,7 @@
 import { Flexbox } from '@lobehub/ui';
 import {
   Button,
+  Checkbox,
   createModal,
   type ModalInstance,
   Text,
@@ -68,7 +69,7 @@ const styles = createStaticStyles(({ css }) => ({
 
 interface DeleteConfirmProps {
   ids: string[];
-  onDelete: () => Promise<unknown>;
+  onDelete: (purge: boolean) => Promise<unknown>;
   title?: string;
 }
 
@@ -81,17 +82,19 @@ const usePurgePreview = (ids: string[]) =>
       ),
   );
 
-const DeleteConfirmContent = memo<DeleteConfirmProps>(({ ids, onDelete }) => {
+const DeleteConfirmContent = memo<DeleteConfirmProps>(({ ids, onDelete, title }) => {
   const { t: translate } = useTranslation('verify');
   const { close } = useModalContext();
   const [pending, setPending] = useState(false);
+  const [purge, setPurge] = useState(false);
   const { data: preview } = usePurgePreview(ids);
   const batch = ids.length > 1;
+  const size = preview ? formatSize(preview.bytes) : undefined;
 
   const run = async () => {
     setPending(true);
     try {
-      await onDelete();
+      await onDelete(purge);
       close();
     } catch (error) {
       console.error('[acceptance:deleteConfirm]', error);
@@ -101,27 +104,28 @@ const DeleteConfirmContent = memo<DeleteConfirmProps>(({ ids, onDelete }) => {
     }
   };
 
-  const okLabel = !preview
-    ? batch
-      ? translate('acceptance.workspace.deleteConfirm.okBatchPlain', { count: ids.length })
-      : translate('actions.delete')
-    : batch
-      ? translate('acceptance.workspace.deleteConfirm.okBatch', {
-          count: ids.length,
-          size: formatSize(preview.bytes),
-        })
-      : translate('acceptance.workspace.deleteConfirm.ok', { size: formatSize(preview.bytes) });
+  const okLabel =
+    !purge || !size
+      ? batch
+        ? translate('acceptance.workspace.deleteConfirm.okBatchPlain', { count: ids.length })
+        : translate('actions.delete')
+      : batch
+        ? translate('acceptance.workspace.deleteConfirm.okBatch', { count: ids.length, size })
+        : translate('acceptance.workspace.deleteConfirm.ok', { size });
 
   return (
     <Flexbox gap={12}>
       <Text fontSize={13} type={'secondary'}>
-        {translate(
-          batch
-            ? 'acceptance.workspace.batch.deleteConfirmDescription'
-            : 'acceptance.workspace.deleteConfirmDescription',
-        )}
+        {batch
+          ? translate('acceptance.workspace.batch.deleteConfirmDescription', { count: ids.length })
+          : translate('acceptance.workspace.deleteConfirmDescription', { title })}
       </Text>
-      {preview && (
+      <Checkbox checked={purge} onChange={setPurge}>
+        {size
+          ? translate('acceptance.workspace.deleteConfirm.purgeOption', { size })
+          : translate('acceptance.workspace.deleteConfirm.purgeOptionPlain')}
+      </Checkbox>
+      {purge && preview && (
         <dl className={styles.facts}>
           <dt>{translate('acceptance.workspace.deleteConfirm.rounds')}</dt>
           <dd>
@@ -137,6 +141,11 @@ const DeleteConfirmContent = memo<DeleteConfirmProps>(({ ids, onDelete }) => {
           <dt>{translate('acceptance.workspace.deleteConfirm.space')}</dt>
           <dd>{formatSize(preview.bytes)}</dd>
         </dl>
+      )}
+      {purge && (
+        <Text fontSize={12} type={'danger'}>
+          {translate('acceptance.workspace.deleteConfirm.purgeWarning')}
+        </Text>
       )}
       <Flexbox horizontal gap={8} justify={'flex-end'}>
         <Button disabled={pending} onClick={close}>

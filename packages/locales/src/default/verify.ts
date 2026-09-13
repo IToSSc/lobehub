@@ -475,7 +475,7 @@ export default {
   'acceptance.workspace.batch.accept': 'Accept',
   'acceptance.workspace.batch.close': 'Close',
   'acceptance.workspace.batch.deleteConfirmDescription':
-    'This permanently deletes every round, report and evidence file of the selected acceptances. It cannot be undone.',
+    'Delete the {{count}} selected acceptance(s)? Their verification rounds are kept — they detach into standalone reports.',
   'acceptance.workspace.batch.deleteConfirmTitle': 'Delete {{count}} acceptance(s)?',
   'acceptance.workspace.batch.deleteSuccess': '{{count}} acceptance(s) deleted',
   'acceptance.workspace.batch.enter': 'Select multiple',
@@ -496,11 +496,17 @@ export default {
   'acceptance.workspace.deleteConfirm.ok': 'Delete and free {{size}}',
   'acceptance.workspace.deleteConfirm.okBatch': 'Delete {{count}} and free {{size}}',
   'acceptance.workspace.deleteConfirm.okBatchPlain': 'Delete {{count}}',
+  'acceptance.workspace.deleteConfirm.purgeOption':
+    'Also permanently delete every round, report and evidence file ({{size}})',
+  'acceptance.workspace.deleteConfirm.purgeOptionPlain':
+    'Also permanently delete every round, report and evidence file',
+  'acceptance.workspace.deleteConfirm.purgeWarning':
+    'This permanently deletes every round, report and evidence file of this acceptance. It cannot be undone.',
   'acceptance.workspace.deleteConfirm.rounds': 'Rounds',
   'acceptance.workspace.deleteConfirm.roundsValue': '{{count}} rounds',
   'acceptance.workspace.deleteConfirm.space': 'Space freed',
   'acceptance.workspace.deleteConfirmDescription':
-    'This permanently deletes every round, report and evidence file of this acceptance. It cannot be undone.',
+    'Delete the acceptance “{{title}}”? Its verification rounds are kept — they detach into standalone reports.',
   'acceptance.workspace.deleteConfirmTitle': 'Delete “{{title}}”?',
   'acceptance.workspace.deleteError': 'Failed to delete acceptance',
   'acceptance.workspace.deleteSuccess': 'Acceptance deleted',

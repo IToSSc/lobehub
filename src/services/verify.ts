@@ -349,11 +349,13 @@ export class VerifyService {
 
   getAcceptancePurgePreview = (id: string) => lambdaClient.acceptance.purgePreview.query({ id });
 
-  /** Delete the acceptance aggregate together with its rounds and their evidence files. */
-  deleteAcceptance = (id: string) => lambdaClient.acceptance.remove.mutate({ id });
+  /** Delete the acceptance aggregate; its round reports detach unless `purge` removes them too. */
+  deleteAcceptance = (id: string, purge?: boolean) =>
+    lambdaClient.acceptance.remove.mutate({ id, purge });
 
   /** Batch twin of `deleteAcceptance` for the list's multi-selection. */
-  deleteAcceptanceBatch = (ids: string[]) => lambdaClient.acceptance.removeBatch.mutate({ ids });
+  deleteAcceptanceBatch = (ids: string[], purge?: boolean) =>
+    lambdaClient.acceptance.removeBatch.mutate({ ids, purge });
 
   // ---- per-run plan ----
   getVerifyState = (operationId: string): Promise<VerifyStateResponse | null> =>
