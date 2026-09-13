@@ -171,6 +171,8 @@ const canReadAcceptance = async (
 
 /** Max rows one multi-select sweep may touch — the list itself is capped at 200. */
 const ACCEPTANCE_BATCH_LIMIT = 200;
+const PURGE_BATCH_CONCURRENCY = 4;
+const PURGE_PREVIEW_LIMIT = 20;
 
 const acceptanceStatusOverrideSchema = z.enum(['delivered', 'accepted', 'closed', 'rejected']);
 
@@ -1384,19 +1386,42 @@ export const acceptanceRouter = router({
     }),
 
   purgePreview: acceptanceProcedure
-    .input(z.object({ id: z.string() }))
+    .input(z.object({ ids: z.array(z.string()).min(1).max(PURGE_PREVIEW_LIMIT) }))
     .query(async ({ ctx, input }) => {
-      const acceptance = isUuid(input.id)
-        ? await ctx.serverDB.query.acceptances.findFirst({ where: eq(acceptances.id, input.id) })
-        : undefined;
-      if (!acceptance || !(await canReadAcceptance(ctx, acceptance))) {
+      const ids = [...new Set(input.ids)];
+      const rows = ids.every(isUuid)
+        ? await ctx.serverDB.query.acceptances.findMany({ where: inArray(acceptances.id, ids) })
+        : [];
+      const readable = await Promise.all(rows.map((row) => canReadAcceptance(ctx, row)));
+      if (rows.length !== ids.length || readable.includes(false)) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Acceptance not found' });
       }
-      return previewAcceptancePurge(
-        ctx.serverDB,
-        acceptance.userId,
-        acceptance.workspaceId ?? undefined,
-        acceptance.id,
+
+      const scopes = new Map<string, { ids: string[]; userId: string; workspaceId?: string }>();
+      for (const row of rows) {
+        const workspaceId = row.workspaceId ?? undefined;
+        const key = workspaceId ?? `user:${row.userId}`;
+        const scope = scopes.get(key) ?? { ids: [], userId: row.userId, workspaceId };
+        scope.ids.push(row.id);
+        scopes.set(key, scope);
+      }
+      const previews = await Promise.all(
+        [...scopes.values()].map((scope) =>
+          previewAcceptancePurge(ctx.serverDB, scope.userId, scope.workspaceId, scope.ids),
+        ),
+      );
+      return previews.reduce(
+        (total, preview) => ({
+          bytes: total.bytes + preview.bytes,
+          fileCount: total.fileCount + preview.fileCount,
+          files: {
+            images: total.files.images + preview.files.images,
+            other: total.files.other + preview.files.other,
+            videos: total.files.videos + preview.files.videos,
+          },
+          rounds: total.rounds + preview.rounds,
+        }),
+        { bytes: 0, fileCount: 0, files: { images: 0, other: 0, videos: 0 }, rounds: 0 },
       );
     }),
 
@@ -1442,7 +1467,7 @@ export const acceptanceRouter = router({
       let deleted = 0;
       const fileService = new FileService(ctx.serverDB, ctx.userId, ctx.workspaceId ?? undefined);
 
-      for (const id of new Set(input.ids)) {
+      await mapWithConcurrency([...new Set(input.ids)], PURGE_BATCH_CONCURRENCY, async (id) => {
         try {
           const { acceptance, service } = await resolveAcceptanceForWrite(ctx, id);
           if (input.purge) {
@@ -1461,7 +1486,7 @@ export const acceptanceRouter = router({
           console.error('[acceptance] batch delete failed for %s', id, error);
           failedIds.push(id);
         }
-      }
+      });
 
       return { deleted, failedIds };
     }),

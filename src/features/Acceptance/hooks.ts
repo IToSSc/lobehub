@@ -125,7 +125,7 @@ export const useAcceptanceList = (
 export const useAcceptancePurgePreview = (acceptanceId: string | null) =>
   useClientDataSWR(
     acceptanceId ? verifyKeys.acceptancePurgePreview(acceptanceId) : null,
-    () => verifyService.getAcceptancePurgePreview(acceptanceId!),
+    () => verifyService.getAcceptancePurgePreview([acceptanceId!]),
     VERIFY_REPORT_SWR_CONFIG,
   );
 

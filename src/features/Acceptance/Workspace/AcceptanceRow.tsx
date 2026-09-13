@@ -236,9 +236,6 @@ const AcceptanceRow = memo<{
           if (active) navigate('/acceptance', { replace: true });
           await onChanged();
           toast.success(t('acceptance.workspace.deleteSuccess'));
-        } catch (error) {
-          console.error('[acceptance:delete]', error);
-          toast.error(t('acceptance.workspace.deleteError'));
         } finally {
           setMutating(false);
         }

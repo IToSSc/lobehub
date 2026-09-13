@@ -17,27 +17,12 @@ import { useTranslation } from 'react-i18next';
 
 import { useClientDataSWR } from '@/libs/swr';
 import { verifyKeys } from '@/libs/swr/keys';
-import { type AcceptancePurgePreview, verifyService } from '@/services/verify';
+import { verifyService } from '@/services/verify';
 import { formatSize } from '@/utils/format';
 
 import { frostedModalStyles } from '../Viewer/Review/modals';
 
-const sumPurgePreviews = (previews: AcceptancePurgePreview[]): AcceptancePurgePreview =>
-  previews.reduce(
-    (total, preview) => ({
-      bytes: total.bytes + preview.bytes,
-      fileCount: total.fileCount + preview.fileCount,
-      files: {
-        images: total.files.images + preview.files.images,
-        other: total.files.other + preview.files.other,
-        videos: total.files.videos + preview.files.videos,
-      },
-      rounds: total.rounds + preview.rounds,
-    }),
-    { bytes: 0, fileCount: 0, files: { images: 0, other: 0, videos: 0 }, rounds: 0 },
-  );
-
-const PREVIEW_FAN_OUT_LIMIT = 20;
+const PREVIEW_BATCH_LIMIT = 20;
 
 const styles = createStaticStyles(({ css }) => ({
   facts: css`
@@ -68,6 +53,7 @@ const styles = createStaticStyles(({ css }) => ({
 }));
 
 interface DeleteConfirmProps {
+  description?: string;
   ids: string[];
   onDelete: (purge: boolean) => Promise<unknown>;
   title?: string;
@@ -75,14 +61,11 @@ interface DeleteConfirmProps {
 
 const usePurgePreview = (ids: string[]) =>
   useClientDataSWR(
-    ids.length > PREVIEW_FAN_OUT_LIMIT ? null : verifyKeys.acceptancePurgePreview(ids.join(',')),
-    async () =>
-      sumPurgePreviews(
-        await Promise.all(ids.map((id) => verifyService.getAcceptancePurgePreview(id))),
-      ),
+    ids.length > PREVIEW_BATCH_LIMIT ? null : verifyKeys.acceptancePurgePreview(ids.join(',')),
+    () => verifyService.getAcceptancePurgePreview(ids),
   );
 
-const DeleteConfirmContent = memo<DeleteConfirmProps>(({ ids, onDelete, title }) => {
+const DeleteConfirmContent = memo<DeleteConfirmProps>(({ description, ids, onDelete, title }) => {
   const { t: translate } = useTranslation('verify');
   const { close } = useModalContext();
   const [pending, setPending] = useState(false);
@@ -124,6 +107,11 @@ const DeleteConfirmContent = memo<DeleteConfirmProps>(({ ids, onDelete, title })
               })
             : translate('acceptance.workspace.deleteConfirmDescription', { title })}
       </Text>
+      {description && (
+        <Text fontSize={13} type={'secondary'}>
+          {description}
+        </Text>
+      )}
       <Checkbox checked={purge} onChange={setPurge}>
         {size
           ? translate('acceptance.workspace.deleteConfirm.purgeOption', { size })

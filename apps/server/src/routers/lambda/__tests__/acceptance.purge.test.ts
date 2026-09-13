@@ -96,7 +96,7 @@ describe('acceptanceRouter purge', () => {
         rounds: 2,
       });
 
-      const res = await caller(ownerId).purgePreview({ id: workspaceRowId });
+      const res = await caller(ownerId).purgePreview({ ids: [workspaceRowId] });
 
       expect(res).toEqual({
         bytes: 10,
@@ -108,12 +108,57 @@ describe('acceptanceRouter purge', () => {
         expect.anything(),
         ownerId,
         workspaceId,
-        workspaceRowId,
+        [workspaceRowId],
       );
 
-      await expect(caller(strangerId).purgePreview({ id: personalId })).rejects.toMatchObject({
+      await expect(caller(strangerId).purgePreview({ ids: [personalId] })).rejects.toMatchObject({
         code: 'NOT_FOUND',
       });
+    });
+
+    it('sums one preview per scope across a batch and rejects when any id is unreadable', async () => {
+      purgeMocks.previewAcceptancePurge
+        .mockResolvedValueOnce({
+          bytes: 10,
+          fileCount: 1,
+          files: { images: 1, other: 0, videos: 0 },
+          rounds: 2,
+        })
+        .mockResolvedValueOnce({
+          bytes: 5,
+          fileCount: 2,
+          files: { images: 0, other: 1, videos: 1 },
+          rounds: 1,
+        });
+
+      const res = await caller(ownerId).purgePreview({ ids: [personalId, workspaceRowId] });
+
+      expect(res).toEqual({
+        bytes: 15,
+        fileCount: 3,
+        files: { images: 1, other: 1, videos: 1 },
+        rounds: 3,
+      });
+      expect(purgeMocks.previewAcceptancePurge).toHaveBeenCalledTimes(2);
+      expect(purgeMocks.previewAcceptancePurge).toHaveBeenCalledWith(
+        expect.anything(),
+        ownerId,
+        undefined,
+        [personalId],
+      );
+      expect(purgeMocks.previewAcceptancePurge).toHaveBeenCalledWith(
+        expect.anything(),
+        ownerId,
+        workspaceId,
+        [workspaceRowId],
+      );
+
+      await expect(
+        caller(strangerId).purgePreview({ ids: [workspaceRowId, personalId] }),
+      ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+      await expect(
+        caller(ownerId).purgePreview({ ids: [personalId, randomUUID()] }),
+      ).rejects.toMatchObject({ code: 'NOT_FOUND' });
     });
   });
 

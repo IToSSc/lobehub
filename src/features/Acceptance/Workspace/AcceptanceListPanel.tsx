@@ -549,6 +549,9 @@ const AcceptanceListPanel = memo<AcceptanceListPanelProps>(
               chunks.map((chunk) => verifyService.deleteAcceptanceBatch(chunk, purge)),
             );
 
+            if (settled.every((part): part is PromiseRejectedResult => part.status === 'rejected'))
+              throw settled[0].reason;
+
             let deleted = 0;
             const failedIds: string[] = [];
             settled.forEach((part, index) => {
@@ -567,9 +570,6 @@ const AcceptanceListPanel = memo<AcceptanceListPanelProps>(
               navigate(acceptanceHomePath(), { replace: true });
             await settleBatch(targets, [], failedIds);
             reportBatch(deleted, targets.length, 'acceptance.workspace.batch.deleteSuccess');
-          } catch (cause) {
-            console.error('[acceptance:batchDelete]', cause);
-            toast.error(t('acceptance.workspace.batch.error'));
           } finally {
             setBatchPending(false);
           }

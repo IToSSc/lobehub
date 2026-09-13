@@ -1,5 +1,8 @@
-import { and, eq, inArray, isNotNull } from 'drizzle-orm';
+import { FileSource } from '@lobechat/types';
+import { and, eq, inArray, isNotNull, notExists, notInArray } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 
+import { serverDBEnv } from '@/config/db';
 import { AcceptanceModel } from '@/database/models/acceptance';
 import { FileModel } from '@/database/models/file';
 import { VerifyRunModel } from '@/database/models/verifyRun';
@@ -20,28 +23,71 @@ const listRunIds = async (
   db: LobeChatDatabase,
   userId: string,
   workspaceId: string | undefined,
-  acceptanceId: string,
+  acceptanceIds: string[],
 ) => {
+  if (acceptanceIds.length === 0) return [];
   const rows = await db
     .select({ id: verifyRuns.id })
     .from(verifyRuns)
     .where(
       and(
-        eq(verifyRuns.acceptanceId, acceptanceId),
+        inArray(verifyRuns.acceptanceId, acceptanceIds),
         buildWorkspaceWhere({ userId, workspaceId }, verifyRuns),
       ),
     );
   return rows.map((row) => row.id);
 };
 
-const listEvidenceFileIds = async (db: LobeChatDatabase, runIds: string[]) => {
+const listExclusiveEvidenceFileIds = async (db: LobeChatDatabase, runIds: string[]) => {
   if (runIds.length === 0) return [];
+  const otherEvidence = alias(verifyEvidence, 'other_evidence');
+  const otherResults = alias(verifyCheckResults, 'other_results');
   const rows = await db
     .selectDistinct({ fileId: verifyEvidence.fileId })
     .from(verifyEvidence)
     .innerJoin(verifyCheckResults, eq(verifyCheckResults.id, verifyEvidence.checkResultId))
-    .where(and(inArray(verifyCheckResults.verifyRunId, runIds), isNotNull(verifyEvidence.fileId)));
+    .innerJoin(files, eq(files.id, verifyEvidence.fileId))
+    .where(
+      and(
+        inArray(verifyCheckResults.verifyRunId, runIds),
+        isNotNull(verifyEvidence.fileId),
+        eq(files.source, FileSource.Acceptance),
+        notExists(
+          db
+            .select({ id: otherEvidence.id })
+            .from(otherEvidence)
+            .innerJoin(otherResults, eq(otherResults.id, otherEvidence.checkResultId))
+            .where(
+              and(
+                eq(otherEvidence.fileId, verifyEvidence.fileId),
+                notInArray(otherResults.verifyRunId, runIds),
+              ),
+            ),
+        ),
+      ),
+    );
   return rows.map((row) => row.fileId!);
+};
+
+const listRetainedHashes = async (
+  db: LobeChatDatabase,
+  rows: { fileHash: string | null; id: string }[],
+) => {
+  const hashes = rows.map((row) => row.fileHash).filter((hash): hash is string => Boolean(hash));
+  if (hashes.length === 0) return new Set<string | null>();
+  const outside = await db
+    .select({ fileHash: files.fileHash })
+    .from(files)
+    .where(
+      and(
+        inArray(files.fileHash, hashes),
+        notInArray(
+          files.id,
+          rows.map((row) => row.id),
+        ),
+      ),
+    );
+  return new Set(outside.map((row) => row.fileHash));
 };
 
 const purgeFiles = async (
@@ -53,16 +99,29 @@ const purgeFiles = async (
 ) => {
   if (fileIds.length === 0) return 0;
   const owned = await db
-    .select({ id: files.id })
+    .select({ fileHash: files.fileHash, id: files.id, url: files.url })
     .from(files)
     .where(and(inArray(files.id, fileIds), buildWorkspaceWhere({ userId, workspaceId }, files)));
   if (owned.length === 0) return 0;
+
+  const removeGlobalFile = serverDBEnv.REMOVE_GLOBAL_FILE;
   const unreferenced = await new FileModel(db, userId, workspaceId).deleteMany(
     owned.map((file) => file.id),
-    true,
+    removeGlobalFile,
   );
-  const urls = [...new Set(unreferenced.map((file) => file.url))];
-  if (urls.length > 0) await fileService.deleteFiles(urls);
+  if (!removeGlobalFile) return owned.length;
+
+  const urls = new Set([
+    ...unreferenced.map((file) => file.url),
+    ...owned.filter((file) => !file.fileHash).map((file) => file.url),
+  ]);
+  if (urls.size > 0) {
+    try {
+      await fileService.deleteFiles([...urls]);
+    } catch (error) {
+      console.error('[acceptance:purge] storage delete failed', error);
+    }
+  }
   return owned.length;
 };
 
@@ -70,10 +129,10 @@ export const previewAcceptancePurge = async (
   db: LobeChatDatabase,
   userId: string,
   workspaceId: string | undefined,
-  acceptanceId: string,
+  acceptanceIds: string[],
 ): Promise<PurgePreview> => {
-  const runIds = await listRunIds(db, userId, workspaceId, acceptanceId);
-  const fileIds = await listEvidenceFileIds(db, runIds);
+  const runIds = await listRunIds(db, userId, workspaceId, acceptanceIds);
+  const fileIds = await listExclusiveEvidenceFileIds(db, runIds);
   const empty = { bytes: 0, fileCount: 0, files: { images: 0, other: 0, videos: 0 } };
   if (fileIds.length === 0) return { ...empty, rounds: runIds.length };
 
@@ -87,14 +146,16 @@ export const previewAcceptancePurge = async (
     .from(files)
     .where(and(inArray(files.id, fileIds), buildWorkspaceWhere({ userId, workspaceId }, files)));
 
+  const retained = await listRetainedHashes(db, rows);
   const maxSizeByObject = new Map<string, number>();
   const counts = { ...empty.files };
   for (const row of rows) {
-    const key = row.fileHash ?? row.id;
-    maxSizeByObject.set(key, Math.max(maxSizeByObject.get(key) ?? 0, row.size));
     if (row.fileType.startsWith('image/')) counts.images += 1;
     else if (row.fileType.startsWith('video/')) counts.videos += 1;
     else counts.other += 1;
+    if (row.fileHash && retained.has(row.fileHash)) continue;
+    const key = row.fileHash ?? row.id;
+    maxSizeByObject.set(key, Math.max(maxSizeByObject.get(key) ?? 0, row.size));
   }
 
   return {
@@ -112,8 +173,8 @@ export const purgeAcceptance = async (
   workspaceId: string | undefined,
   acceptanceId: string,
 ): Promise<{ deletedFiles: number; deletedRuns: number }> => {
-  const runIds = await listRunIds(db, userId, workspaceId, acceptanceId);
-  const fileIds = await listEvidenceFileIds(db, runIds);
+  const runIds = await listRunIds(db, userId, workspaceId, [acceptanceId]);
+  const fileIds = await listExclusiveEvidenceFileIds(db, runIds);
   const deletedFiles = await purgeFiles(db, fileService, userId, workspaceId, fileIds);
 
   await db.transaction(async (tx) => {
@@ -144,7 +205,7 @@ export const purgeVerifyRun = async (
   const run = await runModel.findById(verifyRunId);
   if (!run) return { deletedFiles: 0 };
 
-  const fileIds = await listEvidenceFileIds(db, [run.id]);
+  const fileIds = await listExclusiveEvidenceFileIds(db, [run.id]);
   const deletedFiles = await purgeFiles(db, fileService, userId, workspaceId, fileIds);
   await runModel.delete(run.id);
 

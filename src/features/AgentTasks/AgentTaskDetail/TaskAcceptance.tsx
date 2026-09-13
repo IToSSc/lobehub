@@ -200,6 +200,7 @@ const TaskAcceptance = memo<TaskAcceptanceProps>(({ variant = 'default' }) => {
   const handleRemoveAcceptance = () => {
     if (!acceptanceSubject || !taskId) return;
     openAcceptanceDeleteConfirm({
+      description: t('taskDetail.acceptance.removeConfirm.content'),
       ids: [acceptanceSubject.id],
       title: taskName || requirement || t('taskDetail.acceptance.untitled'),
       onDelete: async (purge) => {

@@ -359,6 +359,12 @@ describe('TaskAcceptance', () => {
 
     fireEvent.click(screen.getByText('taskDetail.acceptance.remove'));
     expect(mocks.openDeleteConfirm).toHaveBeenCalledTimes(1);
+    expect(mocks.openDeleteConfirm).toHaveBeenCalledWith(
+      expect.objectContaining({
+        description: 'taskDetail.acceptance.removeConfirm.content',
+        ids: ['acceptance-1'],
+      }),
+    );
     expect(mocks.deleteAcceptance).not.toHaveBeenCalled();
 
     const opts = mocks.openDeleteConfirm.mock.calls[0][0] as {

@@ -347,7 +347,8 @@ export class VerifyService {
   mergeAcceptance = (sourceId: string, targetId: string) =>
     lambdaClient.acceptance.merge.mutate({ sourceId, targetId });
 
-  getAcceptancePurgePreview = (id: string) => lambdaClient.acceptance.purgePreview.query({ id });
+  getAcceptancePurgePreview = (ids: string[]) =>
+    lambdaClient.acceptance.purgePreview.query({ ids });
 
   /** Delete the acceptance aggregate; its round reports detach unless `purge` removes them too. */
   deleteAcceptance = (id: string, purge?: boolean) =>
