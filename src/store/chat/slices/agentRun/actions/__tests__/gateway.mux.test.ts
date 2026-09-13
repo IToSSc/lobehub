@@ -337,6 +337,46 @@ describe('GatewayActionImpl (enableGatewayMux lab)', () => {
     });
   });
 
+  describe('warmupGatewayMux', () => {
+    const withServerConfig = (serverConfig: Record<string, unknown>) => {
+      (globalThis as any).window = {
+        global_serverConfigStore: { getState: () => ({ serverConfig }) },
+      };
+    };
+
+    it('dials the identity mux on app entry and attaches the feed once', () => {
+      withServerConfig({ agentGatewayUrl: GATEWAY_URL, enableGatewayMode: true });
+      const { action, mux, state } = createTestAction();
+
+      action.warmupGatewayMux();
+      action.warmupGatewayMux();
+
+      expect(action.resolveGatewayMux).toHaveBeenCalledWith({ gatewayUrl: GATEWAY_URL });
+      expect(mux.connect).toHaveBeenCalledTimes(2);
+      mux.emit('lifecycle', {
+        at: 1,
+        operationId: 'op-feed',
+        status: 'running',
+        type: 'op_lifecycle',
+      });
+      expect(Object.keys(state.gatewayFeed)).toEqual(['op-feed']);
+    });
+
+    it('is a no-op when the lab flag is off or gateway mode is unavailable', () => {
+      withServerConfig({ agentGatewayUrl: GATEWAY_URL, enableGatewayMode: true });
+      mockLab.enableGatewayMux = false;
+      const off = createTestAction();
+      off.action.warmupGatewayMux();
+      expect(off.mux.connect).not.toHaveBeenCalled();
+
+      mockLab.enableGatewayMux = true;
+      withServerConfig({ agentGatewayUrl: GATEWAY_URL, enableGatewayMode: false });
+      const noGateway = createTestAction();
+      noGateway.action.warmupGatewayMux();
+      expect(noGateway.mux.connect).not.toHaveBeenCalled();
+    });
+  });
+
   describe('executor ownership', () => {
     const execResult = {
       agentId: 'agent-1',

@@ -183,6 +183,12 @@ export interface GatewayMuxClientOptions {
   getToken: () => Promise<string>;
   /** Heartbeat period in ms (default: 30_000). Sends exactly `{"type":"heartbeat"}`. */
   heartbeatIntervalMs?: number;
+  /**
+   * Keep the socket up even while nothing is subscribed (default: false).
+   * A page-wide mux dialed on app entry sets this so `online` / tab-visible
+   * redials don't wait for the first subscription.
+   */
+  keepAlive?: boolean;
 }
 
 export type GatewayMuxStatus = 'connected' | 'connecting' | 'disconnected';

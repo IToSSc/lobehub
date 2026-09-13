@@ -328,6 +328,7 @@ export class GatewayMuxClient {
   private readonly clientId: string;
   private readonly autoReconnect: boolean;
   private readonly heartbeatIntervalMs: number;
+  private readonly keepAlive: boolean;
 
   constructor(options: GatewayMuxClientOptions) {
     this.gatewayUrl = options.gatewayUrl;
@@ -335,6 +336,7 @@ export class GatewayMuxClient {
     this.clientId = options.clientId ?? randomClientId();
     this.autoReconnect = options.autoReconnect ?? true;
     this.heartbeatIntervalMs = options.heartbeatIntervalMs ?? DEFAULT_HEARTBEAT_INTERVAL;
+    this.keepAlive = options.keepAlive ?? false;
   }
 
   // ─── Public API ───
@@ -650,7 +652,8 @@ export class GatewayMuxClient {
   private reconnectNow = (): void => {
     if (this.intentionalDisconnect || !this.autoReconnect) return;
     if (this.ws || this.connectInFlight) return;
-    if (this.subscriptions.size === 0 && this.connectWaiters.length === 0) return;
+    if (!this.keepAlive && this.subscriptions.size === 0 && this.connectWaiters.length === 0)
+      return;
     if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
     this.clearReconnectTimer();
     void this.doConnect();

@@ -734,6 +734,24 @@ describe('GatewayMuxClient', () => {
       expect(mockWsInstances).toHaveLength(2);
     });
 
+    it('redials on window online with zero subscriptions only when keepAlive is set', async () => {
+      const { mux: lazy } = createMux();
+      const wsLazy = await connectAndReady(lazy);
+      wsLazy.simulateClose();
+      window.dispatchEvent(new Event('online'));
+      await settle();
+      // The backoff timer still owns the redial; the immediate path is gated.
+      expect(mockWsInstances).toHaveLength(1);
+      lazy.disconnect();
+
+      const { mux: eager } = createMux({ keepAlive: true });
+      const wsEager = await connectAndReady(eager);
+      wsEager.simulateClose();
+      window.dispatchEvent(new Event('online'));
+      await settle();
+      expect(mockWsInstances).toHaveLength(3);
+    });
+
     it('treats 3 missed heartbeat acks as a dead socket and reconnects', async () => {
       const { mux } = createMux();
       mux.subscribe('op-1');

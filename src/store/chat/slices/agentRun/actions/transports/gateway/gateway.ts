@@ -557,6 +557,26 @@ export class GatewayActionImpl {
    * Returns true when the server supports Gateway mode and the agent config
    * has not disabled it. `disableGatewayMode: undefined` means enabled.
    */
+  /**
+   * Dial the page-wide mux as soon as the user is in the app (lab
+   * `enableGatewayMux`), so the session's first run never pays the WebSocket
+   * handshake on its critical path — `connectToGateway` then only sends a
+   * `subscribe` frame on the already-open socket. No-op when gateway mode is
+   * off; safe to call repeatedly (`connect` is idempotent).
+   */
+  warmupGatewayMux = (): void => {
+    if (!labPreferSelectors.enableGatewayMux(useUserStore.getState())) return;
+    const serverConfig = window.global_serverConfigStore?.getState()?.serverConfig;
+    if (!serverConfig?.agentGatewayUrl || !serverConfig.enableGatewayMode) return;
+
+    const mux = this.resolveGatewayMux({ gatewayUrl: serverConfig.agentGatewayUrl });
+    this.#attachGatewayFeed(mux);
+    mux.connect().catch(() => {
+      // The mux keeps retrying with backoff; failures surface on its own
+      // `error` / `reconnecting` listeners.
+    });
+  };
+
   isGatewayModeEnabled = (agentId?: string): boolean => {
     const serverConfig = window.global_serverConfigStore?.getState()?.serverConfig;
     const agentState = getAgentStoreState();

@@ -37,8 +37,10 @@ const buildGetToken =
 /**
  * One `GatewayMuxClient` per `${gatewayUrl}|${agentShareId ?? 'owner'}` for
  * the lifetime of the page. Every operation on the same identity multiplexes
- * over that single socket (protocol v2); the socket is dialed lazily on the
- * first `subscribe` and stays up across runs.
+ * over that single socket (protocol v2). The socket is dialed on app entry by
+ * `warmupGatewayMux` (or lazily on the first `subscribe` if that never ran)
+ * and is kept up across runs — `keepAlive` so a drop is redialed even while
+ * nothing is subscribed.
  */
 export const getGatewayMux = (identity: GatewayMuxIdentity): GatewayMuxClient => {
   const key = identityKey(identity);
@@ -47,6 +49,7 @@ export const getGatewayMux = (identity: GatewayMuxIdentity): GatewayMuxClient =>
     mux = new GatewayMuxClient({
       gatewayUrl: identity.gatewayUrl,
       getToken: buildGetToken(identity),
+      keepAlive: true,
     });
     registry.set(key, mux);
   }
