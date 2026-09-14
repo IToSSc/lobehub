@@ -5,8 +5,8 @@ services:
     container_name: lobe-network
     restart: always
     ports:
-      - '${RUSTFS_PORT}:${RUSTFS_PORT}' # RustFS API
-      - '9001:9001' # RustFS Console
+      - '${MINIO_PORT}:${MINIO_PORT}' # MinIO API
+      - '9001:9001' # MinIO Console
       - '${CASDOOR_PORT}:${CASDOOR_PORT}' # Casdoor
       - '${LOBE_PORT}:3210' # LobeChat
       - '3000:3000' # Grafana
@@ -36,49 +36,31 @@ services:
     networks:
       - lobe-network
 
-  rustfs:
-    image: rustfs/rustfs:latest
-    container_name: lobe-rustfs
+  minio:
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    container_name: lobe-minio
     network_mode: 'service:network-service'
     volumes:
-      - 's3_data:/data'
+      - './s3_data:/etc/minio/data'
     environment:
-      - 'RUSTFS_CONSOLE_ENABLE=true'
-      - 'RUSTFS_ACCESS_KEY=${RUSTFS_ACCESS_KEY}'
-      - 'RUSTFS_SECRET_KEY=${RUSTFS_SECRET_KEY}'
-      - 'RUSTFS_CORS_ALLOWED_ORIGINS=*'
+      - 'MINIO_API_CORS_ALLOW_ORIGIN=*'
     env_file:
       - .env
     restart: always
-    command:
-      ['--address', ':${RUSTFS_PORT}', '--console-address', ':9001', '/data']
-    healthcheck:
-      test: ['CMD-SHELL', 'wget -qO- http://localhost:${RUSTFS_PORT}/health >/dev/null 2>&1 || exit 1']
-      interval: 5s
-      timeout: 3s
-      retries: 30
-
-  rustfs-init:
-    image: rustfs/rc:latest
-    container_name: lobe-rustfs-init
-    depends_on:
-      rustfs:
-        condition: service_healthy
-    env_file:
-      - .env
-    entrypoint: /bin/sh
-    command: >
-      -c "
-        set -eux;
-        rc --version;
-        rc alias set rustfs http://network-service:${RUSTFS_PORT} ${RUSTFS_ACCESS_KEY} ${RUSTFS_SECRET_KEY};
-        echo 'Creating bucket ${RUSTFS_LOBE_BUCKET}';
-        rc mb rustfs/${RUSTFS_LOBE_BUCKET} --ignore-existing;
-        rc admin info cluster rustfs || true;
+    entrypoint: >
+      /bin/sh -c "
+        minio server /etc/minio/data --address ':${MINIO_PORT}' --console-address ':9001' &
+        MINIO_PID=\$!
+        while ! curl -s http://localhost:${MINIO_PORT}/minio/health/live; do
+          echo 'Waiting for MinIO to start...'
+          sleep 1
+        done
+        sleep 5
+        mc alias set myminio http://localhost:${MINIO_PORT} ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD}
+        echo 'Creating bucket ${MINIO_LOBE_BUCKET}'
+        mc mb myminio/${MINIO_LOBE_BUCKET}
+        wait \$MINIO_PID
       "
-    restart: 'no'
-    networks:
-      - lobe-network
 
 
   # version lock ref: https://github.com/lobehub/lobe-chat/pull/7331
@@ -185,10 +167,8 @@ services:
         condition: service_healthy
       network-service:
         condition: service_started
-      rustfs:
+      minio:
         condition: service_started
-      rustfs-init:
-        condition: service_completed_successfully
       casdoor:
         condition: service_started
 
@@ -197,11 +177,11 @@ services:
       - 'KEY_VAULTS_SECRET=Kix2wcUONd4CX51E/ZPAd36BqM4wzJgKjPtz2sGztqQ='
       - 'AUTH_SECRET=NX2kaPE923dt6BL2U8e9oSre5RfoT7hg'
       - 'DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD}@postgresql:5432/${LOBE_DB_NAME}'
-      - 'S3_BUCKET=${RUSTFS_LOBE_BUCKET}'
+      - 'S3_BUCKET=${MINIO_LOBE_BUCKET}'
       - 'S3_ENABLE_PATH_STYLE=1'
-      - 'S3_ACCESS_KEY=${RUSTFS_ACCESS_KEY}'
-      - 'S3_ACCESS_KEY_ID=${RUSTFS_ACCESS_KEY}'
-      - 'S3_SECRET_ACCESS_KEY=${RUSTFS_SECRET_KEY}'
+      - 'S3_ACCESS_KEY=${MINIO_ROOT_USER}'
+      - 'S3_ACCESS_KEY_ID=${MINIO_ROOT_USER}'
+      - 'S3_SECRET_ACCESS_KEY=${MINIO_ROOT_PASSWORD}'
       - 'LLM_VISION_IMAGE_USE_BASE64=1'
       - 'S3_SET_ACL=0'
       - 'SEARXNG_URL=http://searxng:8080'
@@ -241,11 +221,11 @@ services:
           fi
         fi
         if [ $(wget --timeout=5 --spider --server-response ${S3_ENDPOINT}/minio/health/live 2>&1 | grep -c 'HTTP/1.1 200 OK') -eq 0 ]; then
-          echo '⚠️Warning: Unable to fetch RustFS health status'
+          echo '⚠️Warning: Unable to fetch MinIO health status'
           echo 'Request URL: ${S3_ENDPOINT}/minio/health/live'
           echo 'Read more at: https://lobehub.com/docs/self-hosting/server-database/docker-compose#necessary-configuration'
           echo ''
-          echo '⚠️注意：无法获取 RustFS 健康状态'
+          echo '⚠️注意：无法获取 MinIO 健康状态'
           echo '请求 URL: ${S3_ENDPOINT}/minio/health/live'
           echo '了解更多：https://lobehub.com/zh/docs/self-hosting/server-database/docker-compose#necessary-configuration'
           echo ''
