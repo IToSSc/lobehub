@@ -4,6 +4,7 @@ import { AgentRuntimeErrorType } from '@lobechat/types';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { ModelRuntimeDiagnostics } from '../../types/providerDiagnostics';
+import { ContextExceededPreFlightError } from '../../utils/resolveSafeMaxTokens';
 import {
   createAnthropicCompatibleRuntime,
   createDefaultAnthropicClient,
@@ -146,6 +147,17 @@ describe('createDefaultAnthropicClient', () => {
 });
 
 describe('handleDefaultAnthropicError', () => {
+  it('classifies upstream 413 as an oversized request body', () => {
+    expect(
+      handleDefaultAnthropicError(
+        { message: 'Failed to buffer the request body: length limit exceeded', status: 413 },
+        { apiKey: 'test-key', baseURL: 'https://api.example.com/anthropic' },
+      ),
+    ).toMatchObject({
+      errorType: AgentRuntimeErrorType.RequestBodyTooLarge,
+    });
+  });
+
   it('should classify provider balance errors as insufficient quota', () => {
     expect(
       handleDefaultAnthropicError(
@@ -173,6 +185,58 @@ describe('handleDefaultAnthropicError', () => {
 });
 
 describe('createAnthropicCompatibleRuntime', () => {
+  it('returns a structured context error before dispatch when payload pre-flight fails', async () => {
+    const messagesCreate = vi.fn();
+    const Runtime = createAnthropicCompatibleRuntime({
+      chatCompletion: {
+        handlePayload: () => {
+          throw new ContextExceededPreFlightError({
+            ctx: 1_048_576,
+            minOutputTokens: 1024,
+            model: 'deepseek-v4-flash',
+            promptTokens: 1_200_000,
+          });
+        },
+      },
+      customClient: {
+        createClient: () => ({ messages: { create: messagesCreate } }) as unknown as Anthropic,
+      },
+      provider: 'deepseek',
+    });
+
+    await expect(
+      new Runtime({ apiKey: 'test-key' }).chat({ model: 'deepseek-v4-flash' } as any),
+    ).rejects.toMatchObject({
+      error: {
+        ctx: 1_048_576,
+        promptTokens: 1_200_000,
+        type: 'context_exceeded_pre_flight',
+      },
+      errorType: AgentRuntimeErrorType.ExceededContextWindow,
+    });
+    expect(messagesCreate).not.toHaveBeenCalled();
+  });
+
+  it('classifies an upstream 413 response as an oversized request body', async () => {
+    const messagesCreate = vi.fn().mockRejectedValue({
+      message: '<html>413 Request Entity Too Large</html>',
+      status: 413,
+    });
+    const Runtime = createAnthropicCompatibleRuntime({
+      chatCompletion: {
+        handlePayload: (payload) => ({ max_tokens: 1024, messages: [], model: payload.model }),
+      },
+      customClient: {
+        createClient: () => ({ messages: { create: messagesCreate } }) as unknown as Anthropic,
+      },
+      provider: 'deepseek',
+    });
+
+    await expect(
+      new Runtime({ apiKey: 'test-key' }).chat({ model: 'deepseek-v4-flash' } as any),
+    ).rejects.toMatchObject({ errorType: AgentRuntimeErrorType.RequestBodyTooLarge });
+  });
+
   it('should normalize default baseURL before creating a custom client', () => {
     const createClient = vi.fn((options) => ({ baseURL: options.baseURL }) as unknown as Anthropic);
     const Runtime = createAnthropicCompatibleRuntime({

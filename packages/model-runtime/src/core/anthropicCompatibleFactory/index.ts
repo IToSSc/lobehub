@@ -25,6 +25,7 @@ import { getModelPricing } from '../../utils/getModelPricing';
 import type { ModelIdMappingOptions } from '../../utils/modelIdMapping';
 import { resolveMappedModelId } from '../../utils/modelIdMapping';
 import { MODEL_LIST_CONFIGS, processModelList } from '../../utils/modelParse';
+import { ContextExceededPreFlightError } from '../../utils/resolveSafeMaxTokens';
 import { StreamingResponse } from '../../utils/response';
 import type { LobeRuntimeAI } from '../BaseAI';
 import {
@@ -328,6 +329,13 @@ export const handleDefaultAnthropicError = <T extends Record<string, any> = any>
           endpoint: desensitizedEndpoint,
           error: error as any,
           errorType: AgentRuntimeErrorType.LocationNotSupportError,
+        };
+      }
+      case 413: {
+        return {
+          endpoint: desensitizedEndpoint,
+          error: error as any,
+          errorType: AgentRuntimeErrorType.RequestBodyTooLarge,
         };
       }
       default: {
@@ -795,6 +803,16 @@ export const createAnthropicCompatibleRuntime = <T extends Record<string, any> =
         desensitizedEndpoint = desensitizeUrl(this.baseURL);
       }
 
+      if (error instanceof ContextExceededPreFlightError) {
+        return AgentRuntimeError.chat({
+          endpoint: desensitizedEndpoint,
+          error: error.toPayload(),
+          errorType: AgentRuntimeErrorType.ExceededContextWindow,
+          message: error.message,
+          provider: this.id,
+        });
+      }
+
       if (chatCompletion?.handleError) {
         const errorResult = chatCompletion.handleError(error, this._options);
         if (errorResult)
@@ -819,6 +837,14 @@ export const createAnthropicCompatibleRuntime = <T extends Record<string, any> =
               endpoint: desensitizedEndpoint,
               error: error as any,
               errorType: AgentRuntimeErrorType.LocationNotSupportError,
+              provider: this.id,
+            });
+          }
+          case 413: {
+            return AgentRuntimeError.chat({
+              endpoint: desensitizedEndpoint,
+              error: error as any,
+              errorType: AgentRuntimeErrorType.RequestBodyTooLarge,
               provider: this.id,
             });
           }
