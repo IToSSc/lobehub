@@ -300,6 +300,23 @@ class OperationSubscriptionImpl implements OperationSubscription {
  *
  * Protocol reference: packages/agent-gateway-client/PROTOCOL_V2.md §4, §6.
  */
+/**
+ * Linear-time trailing-slash strip (a `/\/+$/` regex is flagged as polynomial
+ * ReDoS on untrusted input by CodeQL, and the gateway URL comes from server
+ * config).
+ */
+const trimTrailingSlashes = (value: string): string => {
+  let end = value.length;
+  while (end > 0 && value.charCodeAt(end - 1) === 47 /* '/' */) end--;
+  return value.slice(0, end);
+};
+
+const stripHttpScheme = (value: string): string => {
+  if (value.startsWith('https://')) return value.slice('https://'.length);
+  if (value.startsWith('http://')) return value.slice('http://'.length);
+  return value;
+};
+
 export class GatewayMuxClient {
   private ws: WebSocket | null = null;
   private _status: GatewayMuxStatus = 'disconnected';
@@ -474,12 +491,11 @@ export class GatewayMuxClient {
     const query = `token=${encodeURIComponent(token)}&clientId=${encodeURIComponent(this.clientId)}`;
     // If the URL already has a ws/wss protocol, use it directly
     if (this.gatewayUrl.startsWith('ws://') || this.gatewayUrl.startsWith('wss://')) {
-      const base = this.gatewayUrl.replace(/\/+$/, '');
-      return `${base}/v2/ws?${query}`;
+      return `${trimTrailingSlashes(this.gatewayUrl)}/v2/ws?${query}`;
     }
     // Otherwise convert http(s) to ws(s)
     const wsProtocol = this.gatewayUrl.startsWith('https') ? 'wss' : 'ws';
-    const host = this.gatewayUrl.replace(/^https?:\/\//, '').replace(/\/+$/, '');
+    const host = trimTrailingSlashes(stripHttpScheme(this.gatewayUrl));
     return `${wsProtocol}://${host}/v2/ws?${query}`;
   }
 
