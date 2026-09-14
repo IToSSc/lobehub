@@ -96,6 +96,14 @@ vi.mock('@/database/models/user', () => ({
   }),
 }));
 
+const mockFileFindByIds = vi.fn();
+const FileModelMock = vi.fn(function () {
+  return { findByIds: mockFileFindByIds };
+});
+vi.mock('@/database/models/file', () => ({
+  FileModel: FileModelMock,
+}));
+
 const mockExecAgent = vi.fn();
 const mockInterruptTask = vi.fn();
 const AiAgentServiceMock = vi.fn(function () {
@@ -168,6 +176,7 @@ describe('shareChatRouter', () => {
     mockInterruptTask.mockResolvedValue({ operationId: 'op-1', success: true });
     mockSignUserJWT.mockResolvedValue('visitor-jwt');
     mockSpendGate.mockResolvedValue({ allowed: true });
+    mockFileFindByIds.mockResolvedValue([]);
   });
 
   describe('execAgent', () => {
@@ -277,6 +286,67 @@ describe('shareChatRouter', () => {
           },
         }),
       );
+    });
+
+    describe('attachments', () => {
+      const fileIds = ['file-a', 'file-b'];
+
+      it('forwards visitor-owned fileIds to the run after checking ownership in the VISITOR scope', async () => {
+        mockFileFindByIds.mockResolvedValue(fileIds.map((id) => ({ id })));
+        const caller = await createCaller();
+
+        await caller.execAgent({ fileIds, prompt: 'look', shareId: 'share-1' });
+
+        // The file rows belong to the visitor (uploaded through their own
+        // account), so the check must run as the visitor — a creator-scoped
+        // lookup would reject every id.
+        expect(FileModelMock).toHaveBeenCalledWith(expect.anything(), VISITOR);
+        expect(mockFileFindByIds).toHaveBeenCalledWith(fileIds);
+        expect(mockExecAgent).toHaveBeenCalledWith(expect.objectContaining({ fileIds }));
+      });
+
+      it("rejects with NOT_FOUND when any id is not the visitor's own, before any cap or run", async () => {
+        // Only one of the two ids resolves in the visitor's scope: the other
+        // belongs to someone else (or was deleted). Fail closed on the whole
+        // request rather than silently dropping the foreign id.
+        mockFileFindByIds.mockResolvedValue([{ id: 'file-a' }]);
+        const caller = await createCaller();
+
+        await expect(
+          caller.execAgent({ fileIds, prompt: 'look', shareId: 'share-1' }),
+        ).rejects.toMatchObject({ code: 'NOT_FOUND', message: 'File not found' });
+        expect(mockCountBySender).not.toHaveBeenCalled();
+        expect(mockExecAgent).not.toHaveBeenCalled();
+      });
+
+      it('accepts duplicate ids as long as each distinct id is owned', async () => {
+        mockFileFindByIds.mockResolvedValue([{ id: 'file-a' }]);
+        const caller = await createCaller();
+
+        await expect(
+          caller.execAgent({ fileIds: ['file-a', 'file-a'], prompt: 'look', shareId: 'share-1' }),
+        ).resolves.toMatchObject({ operationId: 'op-1' });
+        expect(mockFileFindByIds).toHaveBeenCalledWith(['file-a']);
+      });
+
+      it('skips the ownership lookup entirely when no fileIds are sent', async () => {
+        const caller = await createCaller();
+
+        await caller.execAgent({ prompt: 'hi', shareId: 'share-1' });
+
+        expect(FileModelMock).not.toHaveBeenCalled();
+      });
+
+      it('rejects more than SHARE_VISITOR_MAX_FILES_PER_TURN ids at the schema, before any lookup', async () => {
+        const caller = await createCaller();
+        const tooMany = Array.from({ length: 11 }, (_, i) => `file-${i}`);
+
+        await expect(
+          caller.execAgent({ fileIds: tooMany, prompt: 'look', shareId: 'share-1' }),
+        ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+        expect(FileModelMock).not.toHaveBeenCalled();
+        expect(mockExecAgent).not.toHaveBeenCalled();
+      });
     });
 
     // Regression for Codex P1 (`shareChat.ts` prompt schema): a

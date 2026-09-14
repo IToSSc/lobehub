@@ -5,6 +5,12 @@ import { lambdaClient } from '@/libs/trpc/client';
 export interface ShareChatExecParams {
   /** Client-minted ids for the rows this run creates (fresh sends only). */
   clientIds?: { assistantMessageId?: string; topicId?: string; userMessageId?: string };
+  /**
+   * Visitor-owned uploads (created through the visitor's normal file upload)
+   * to attach to this turn. The server re-checks ownership in the visitor's
+   * scope, so ids belonging to anyone else are rejected rather than leaked.
+   */
+  fileIds?: string[];
   prompt: string;
   shareId: string;
   /** Absent → the server creates a new visitor topic (counted against the topic cap). */

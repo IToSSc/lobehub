@@ -56,6 +56,17 @@ export const AGENT_SHARE_DEFAULT_MONTHLY_SPEND_LIMIT = 10;
 export const SHARE_VISITOR_PROMPT_MAX_LENGTH = 20_000;
 
 /**
+ * Upper bound on attachments a share visitor may pin to one turn.
+ *
+ * Attachments are uploaded through the VISITOR's own account (their storage,
+ * their quota), so storage abuse is self-limiting — this cap only bounds the
+ * per-turn work the CREATOR pays for: every attached document is parsed and
+ * injected into the creator-billed model call, and every image rides along
+ * as vision input. Ten mirrors what a single owner turn realistically carries.
+ */
+export const SHARE_VISITOR_MAX_FILES_PER_TURN = 10;
+
+/**
  * Validates `AgentShareConfig.slug`: lowercase alphanumerics and hyphens
  * only, 3-64 characters, no leading/trailing hyphen. Deliberately excludes
  * uppercase and underscores to keep share URLs visually unambiguous and

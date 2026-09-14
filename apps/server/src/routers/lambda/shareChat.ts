@@ -1,6 +1,7 @@
 import {
   AGENT_SHARE_DEFAULT_MAX_TOPICS_PER_VISITOR,
   AGENT_SHARE_DEFAULT_MAX_TURNS_PER_TOPIC,
+  SHARE_VISITOR_MAX_FILES_PER_TURN,
   SHARE_VISITOR_PROMPT_MAX_LENGTH,
 } from '@lobechat/const';
 import type { ChatMessageError } from '@lobechat/types';
@@ -11,6 +12,7 @@ import { z } from 'zod';
 
 import { checkAgentShareSpendAllowance } from '@/business/server/agent-share/spendGate';
 import { AgentShareModel } from '@/database/models/agentShare';
+import { FileModel } from '@/database/models/file';
 import { MessageModel, sanitizeVisitorError } from '@/database/models/message';
 import { TopicModel } from '@/database/models/topic';
 import { UserModel } from '@/database/models/user';
@@ -157,6 +159,29 @@ const toVisitorSafeStartupError = (
   });
 };
 
+/**
+ * Every attachment id a visitor pins to a turn must be a file in the
+ * VISITOR's own scope. The run itself executes as the creator, so without
+ * this check a visitor could name any file id and have the creator-scoped
+ * resolver either silently drop it (today) or, once the runtime reads under
+ * the visitor id, attach a file that is not theirs. `NOT_FOUND` on purpose —
+ * same fail-closed shape as the topic guard, revealing nothing about whether
+ * the id exists for someone else.
+ */
+const assertVisitorOwnsFiles = async (
+  db: LobeChatDatabase,
+  visitorUserId: string,
+  fileIds: string[] | undefined,
+) => {
+  if (!fileIds?.length) return;
+
+  const uniqueIds = Array.from(new Set(fileIds));
+  const owned = await new FileModel(db, visitorUserId).findByIds(uniqueIds);
+  if (owned.length !== uniqueIds.length) {
+    throw new TRPCError({ code: 'NOT_FOUND', message: 'File not found' });
+  }
+};
+
 export const shareChatRouter = router({
   /**
    * Execute a shared agent as a visitor — the gateway-transport mirror of
@@ -173,6 +198,15 @@ export const shareChatRouter = router({
             topicId: z.string().regex(entityIdPattern('topics')).optional(),
             userMessageId: z.string().regex(entityIdPattern('messages')).optional(),
           })
+          .optional(),
+        /**
+         * Ids of files the VISITOR already uploaded through their own
+         * `file.createFile`. Ownership is re-checked below against the
+         * visitor's scope, never the creator's — see `assertVisitorOwnsFiles`.
+         */
+        fileIds: z
+          .array(z.string().min(1).max(64))
+          .max(SHARE_VISITOR_MAX_FILES_PER_TURN)
           .optional(),
         /** See `SHARE_VISITOR_PROMPT_MAX_LENGTH`'s JSDoc for the size-bound rationale. */
         prompt: z.string().max(SHARE_VISITOR_PROMPT_MAX_LENGTH),
@@ -201,6 +235,12 @@ export const shareChatRouter = router({
           message: ChatErrorType.ShareSpendLimitExceeded,
         });
       }
+
+      // Attachments are the VISITOR's own uploads: verify every id resolves in
+      // the visitor's file scope before it is handed to a run that executes
+      // (and reads files) as the creator. Also ahead of any row creation, like
+      // the spend gate — a foreign id must not leave a topic behind.
+      await assertVisitorOwnsFiles(ctx.serverDB, ctx.userId, input.fileIds);
 
       // Runtime-normalized (findByShareIdWithAccessCheck fills defaults), but
       // the config TYPE keeps every field optional — re-apply the same default
@@ -295,6 +335,9 @@ export const shareChatRouter = router({
           appContext: { topicId: input.topicId },
           clientIds: input.clientIds,
           clientIp: ctx.clientIp ?? undefined,
+          // Visitor-owned ids; `turnSetup` resolves them under
+          // `shareGate.visitorUserId`, not the creator scope of this service.
+          fileIds: input.fileIds,
           // `interactiveStart: true` (the `aiAgent.execAgent` owner path's
           // default) makes `TopicModel.tryReserveTaskCallback` skip its
           // `runningOperation` liveness check entirely — a policy that is safe
