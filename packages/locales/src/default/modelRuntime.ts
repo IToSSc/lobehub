@@ -71,12 +71,12 @@ export default {
     'Connection to the provider timed out or was dropped. Please check your network and try again.',
   ProviderServiceUnavailable:
     'The provider is temporarily overloaded or unavailable. Please try again shortly.',
-  RequestBodyTooLarge:
-    'This request is too large for the model provider. Compact the conversation or reduce attached content, then try again.',
   QuotaLimitReached:
     "Sorry, the token usage or request count has reached the quota limit for this key. Please increase the key's quota or try again later.",
   RateLimitExceeded:
     "Sorry, the token usage or request count has reached the rate limit for this key. Please try again later or increase the key's quota.",
+  RequestBodyTooLarge:
+    'This request is too large for the model provider. Compact the conversation or reduce attached content, then try again.',
   StateStorePersistError:
     'A temporary issue with the conversation state store interrupted this operation. Please try again; if it persists, contact support.',
   StateStoreReadError:
