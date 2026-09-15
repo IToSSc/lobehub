@@ -25,6 +25,7 @@ beforeEach(() => {
     composioServers: [],
     installedPlugins: [],
     lobehubSkillServers: [],
+    uninstalledBuiltinTools: [],
   } as any);
 });
 
@@ -62,6 +63,14 @@ describe('createBrowserContextFactProviders', () => {
     const connected = await createBrowserContextFactProviders().listConnectedConnectorIds!();
 
     expect(new Set(connected)).toEqual(new Set(['gmail', 'linear']));
+  });
+
+  it('reports the builtins the user uninstalled', async () => {
+    useToolStore.setState({ uninstalledBuiltinTools: ['lobe-gone'] } as any);
+
+    await expect(createBrowserContextFactProviders().listUninstalledBuiltinIds!()).resolves.toEqual(
+      ['lobe-gone'],
+    );
   });
 
   it('answers agent documents from the store cache first', async () => {

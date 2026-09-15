@@ -288,6 +288,22 @@ export const createServerContextFactProviders = ({
         title: a.title,
       })),
 
+    // The uninstalled list lives on the user's tool settings, one slot per
+    // workspace plus the personal one — the same slot the tool store reads.
+    listUninstalledBuiltinIds: async () => {
+      const settings = await new UserModel(db, userId).getUserSettings();
+      const tool = settings?.tool as
+        | {
+            uninstalledBuiltinTools?: string[];
+            uninstalledBuiltinToolsByWorkspace?: Record<string, string[] | undefined>;
+          }
+        | null
+        | undefined;
+      return workspaceId
+        ? tool?.uninstalledBuiltinToolsByWorkspace?.[workspaceId]
+        : tool?.uninstalledBuiltinTools;
+    },
+
     listSandboxFiles: async (topicId) =>
       new FileModel(db, userId).findFilesToInitInSandbox(topicId),
 

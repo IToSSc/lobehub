@@ -2,19 +2,19 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { createServerContextFactProviders } from './index';
 
-const { findById, getInfoForAIGeneration, loadConnectedComposioIds, pluginQuery } = vi.hoisted(
-  () => ({
+const { findById, getInfoForAIGeneration, getUserSettings, loadConnectedComposioIds, pluginQuery } =
+  vi.hoisted(() => ({
     findById: vi.fn(),
     getInfoForAIGeneration: vi.fn(),
+    getUserSettings: vi.fn(),
     loadConnectedComposioIds: vi.fn(),
     pluginQuery: vi.fn(),
-  }),
-);
+  }));
 
 vi.mock('@/database/models/user', () => ({
   UserModel: Object.assign(
     class {
-      getUserSettings = vi.fn();
+      getUserSettings = getUserSettings;
     },
     { getInfoForAIGeneration },
   ),
@@ -92,6 +92,26 @@ describe('createServerContextFactProviders', () => {
     ).resolves.toEqual([
       { description: 'Local files', identifier: 'my-mcp', name: 'My MCP', type: 'custom' },
     ]);
+  });
+
+  it('reads the uninstalled builtin list from the scope the run belongs to', async () => {
+    getUserSettings.mockResolvedValue({
+      tool: {
+        uninstalledBuiltinTools: ['lobe-personal-gone'],
+        uninstalledBuiltinToolsByWorkspace: { 'ws-1': ['lobe-ws-gone'] },
+      },
+    });
+
+    await expect(
+      createServerContextFactProviders(source({ origin: { workspaceId: 'ws-1' } }))
+        .listUninstalledBuiltinIds!(),
+    ).resolves.toEqual(['lobe-ws-gone']);
+    await expect(
+      createServerContextFactProviders({
+        ctx: { serverDB: {}, userId: 'owner-1' } as never,
+        state: {} as never,
+      }).listUninstalledBuiltinIds!(),
+    ).resolves.toEqual(['lobe-personal-gone']);
   });
 
   it('returns the app origin and the workspace slug when it resolves', async () => {

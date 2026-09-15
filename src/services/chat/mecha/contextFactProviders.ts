@@ -187,6 +187,10 @@ export const createBrowserContextFactProviders = ({
   listRecentAgents: async (limit) =>
     getAgentStoreState().availableAgents ?? (await agentService.queryAgents({ limit })),
 
+  // Non-recommended builtins are uninstalled by default; the builder must
+  // not present them as installed and pin unusable identifiers.
+  listUninstalledBuiltinIds: async () => getToolStoreState().uninstalledBuiltinTools,
+
   listSandboxFiles: async () =>
     chatSelectors
       .currentUserFiles(getChatStoreState())
