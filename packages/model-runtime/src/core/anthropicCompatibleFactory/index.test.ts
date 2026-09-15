@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ModelRuntimeDiagnostics } from '../../types/providerDiagnostics';
 import { ContextExceededPreFlightError } from '../../utils/resolveSafeMaxTokens';
 import {
+  createAnthropicCompatibleParams,
   createAnthropicCompatibleRuntime,
   createDefaultAnthropicClient,
   DEFAULT_ANTHROPIC_TIMEOUT,
@@ -235,6 +236,32 @@ describe('createAnthropicCompatibleRuntime', () => {
     await expect(
       new Runtime({ apiKey: 'test-key' }).chat({ model: 'deepseek-v4-flash' } as any),
     ).rejects.toMatchObject({ errorType: AgentRuntimeErrorType.RequestBodyTooLarge });
+  });
+
+  it.each([
+    [401, AgentRuntimeErrorType.InvalidGithubToken],
+    [500, AgentRuntimeErrorType.OllamaBizError],
+  ])('honors error type overrides for a %i response', async (status, expectedErrorType) => {
+    const messagesCreate = vi.fn().mockRejectedValue({ message: 'upstream error', status });
+    const Runtime = createAnthropicCompatibleRuntime(
+      createAnthropicCompatibleParams({
+        chatCompletion: {
+          handlePayload: (payload) => ({ max_tokens: 1024, messages: [], model: payload.model }),
+        },
+        customClient: {
+          createClient: () => ({ messages: { create: messagesCreate } }) as unknown as Anthropic,
+        },
+        errorType: {
+          bizError: AgentRuntimeErrorType.OllamaBizError,
+          invalidAPIKey: AgentRuntimeErrorType.InvalidGithubToken,
+        },
+        provider: 'test-provider',
+      }),
+    );
+
+    await expect(
+      new Runtime({ apiKey: 'test-key' }).chat({ model: 'test-model' } as any),
+    ).rejects.toMatchObject({ errorType: expectedErrorType });
   });
 
   it('should normalize default baseURL before creating a custom client', () => {
