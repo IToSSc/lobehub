@@ -185,8 +185,10 @@ export interface GatewayMuxClientOptions {
   heartbeatIntervalMs?: number;
   /**
    * Keep the socket up even while nothing is subscribed (default: false).
-   * A page-wide mux dialed on app entry sets this so `online` / tab-visible
-   * redials don't wait for the first subscription.
+   * Off: the socket is closed once the last subscription ends and a lost idle
+   * socket is not redialed (the next `subscribe` dials again). On: a page-wide
+   * mux dialed on app entry stays up and is redialed on `online` / tab-visible
+   * even with nothing subscribed.
    */
   keepAlive?: boolean;
 }

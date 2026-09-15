@@ -164,6 +164,7 @@ describe('GatewayMuxClient', () => {
 
     it('awaits getToken before every connect attempt', async () => {
       const { getToken, mux } = createMux();
+      mux.subscribe('op-1'); // a live subscription keeps the lazy mux redialing
       const ws = await connectAndReady(mux);
       expect(getToken).toHaveBeenCalledTimes(1);
 
@@ -278,6 +279,58 @@ describe('GatewayMuxClient', () => {
       expect(ws.ofType('unsubscribe')).toHaveLength(0);
       b.unsubscribe();
       expect(ws.ofType('unsubscribe')).toEqual([{ operationId: 'op-1', type: 'unsubscribe' }]);
+    });
+
+    it('closes an idle lazy mux after the last subscription ends and redials on the next subscribe', async () => {
+      const { mux } = createMux();
+      const ws = await connectAndReady(mux);
+      const sub = mux.subscribe('op-1');
+
+      sub.unsubscribe();
+      expect(ws.ofType('unsubscribe')).toHaveLength(1);
+      // The close is deferred a tick so unsubscribe+subscribe reuses the socket.
+      expect(ws.closedWith).toBeNull();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(ws.closedWith).not.toBeNull();
+      expect(mux.status).toBe('disconnected');
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(mockWsInstances).toHaveLength(1);
+
+      mux.subscribe('op-2');
+      const ws2 = await settle();
+      expect(mockWsInstances).toHaveLength(2);
+      ws2.simulateMessage(READY);
+      expect(ws2.ofType('subscribe')).toEqual([{ operationId: 'op-2', type: 'subscribe' }]);
+    });
+
+    it('does not redial an idle lazy mux that loses its socket', async () => {
+      const { mux } = createMux();
+      const ws = await connectAndReady(mux);
+      ws.simulateClose();
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(mockWsInstances).toHaveLength(1);
+      expect(mux.status).toBe('disconnected');
+    });
+
+    it('keeps a keepAlive mux up after the last subscription ends', async () => {
+      const { mux } = createMux({ keepAlive: true });
+      const ws = await connectAndReady(mux);
+      mux.subscribe('op-1').unsubscribe();
+      expect(ws.ofType('unsubscribe')).toHaveLength(1);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(ws.closedWith).toBeNull();
+      expect(mux.status).toBe('connected');
+    });
+
+    it('reuses the socket when a subscribe follows the last unsubscribe in the same tick', async () => {
+      const { mux } = createMux();
+      const ws = await connectAndReady(mux);
+      mux.subscribe('op-1').unsubscribe();
+      mux.subscribe('op-2');
+      await vi.advanceTimersByTimeAsync(0);
+      expect(ws.closedWith).toBeNull();
+      expect(mockWsInstances).toHaveLength(1);
+      expect(ws.ofType('subscribe').map((m: any) => m.operationId)).toEqual(['op-1', 'op-2']);
     });
   });
 

@@ -56,7 +56,13 @@ export const getGatewayMux = (identity: GatewayMuxIdentity): GatewayMuxClient =>
   return mux;
 };
 
-/** Test seam: tear down every mux (they hold window listeners) and forget them. */
+/**
+ * Tear down every mux (they hold window listeners and the lifecycle → store
+ * feed) and forget them. Called when the user-data context resets
+ * (`stores.reset()`, e.g. the desktop app switching or disconnecting its
+ * remote server) so a socket authenticated for the previous identity never
+ * outlives it or keeps writing into the reset chat store; also a test seam.
+ */
 export const resetGatewayMuxRegistry = (): void => {
   for (const mux of registry.values()) mux.disconnect();
   registry.clear();

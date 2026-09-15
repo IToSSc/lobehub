@@ -321,6 +321,7 @@ export class GatewayMuxClient {
   private ws: WebSocket | null = null;
   private _status: GatewayMuxStatus = 'disconnected';
   private intentionalDisconnect = false;
+  private idleCloseTimer: ReturnType<typeof setTimeout> | null = null;
   private connectGeneration = 0;
   private connectInFlight = false;
   private connectWaiters: Array<{ reject: (error: Error) => void; resolve: () => void }> = [];
@@ -374,6 +375,7 @@ export class GatewayMuxClient {
    * rejects if `disconnect()` is called or auth gives up before that.
    */
   connect(): Promise<void> {
+    this.clearIdleClose();
     if (this._status === 'connected') return Promise.resolve();
     this.intentionalDisconnect = false;
     this.installBrowserListeners();
@@ -405,6 +407,7 @@ export class GatewayMuxClient {
    * `subscribe` message is (re)sent whenever the socket becomes ready.
    */
   subscribe(operationId: string, options: OperationSubscribeOptions = {}): OperationSubscription {
+    this.clearIdleClose();
     const subscription = new OperationSubscriptionImpl(this, operationId, options);
     let set = this.subscriptions.get(operationId);
     if (!set) {
@@ -436,6 +439,33 @@ export class GatewayMuxClient {
     if (set.size === 0) {
       this.subscriptions.delete(subscription.operationId);
       this.sendMessage({ operationId: subscription.operationId, type: 'unsubscribe' });
+    }
+    // A lazily-dialed mux has no reason to stay up once nothing is subscribed;
+    // the next `subscribe` redials. `keepAlive` muxes are owned by the page.
+    if (this.isIdle()) this.scheduleIdleClose();
+  }
+
+  /** Nothing subscribed, nobody awaiting `connect()`, and not asked to stay up. */
+  private isIdle(): boolean {
+    return !this.keepAlive && this.subscriptions.size === 0 && this.connectWaiters.length === 0;
+  }
+
+  /**
+   * Close on the next tick, not synchronously: an unsubscribe immediately
+   * followed by a subscribe (the adapter's `reconnect()`) must reuse the socket.
+   */
+  private scheduleIdleClose(): void {
+    if (this.idleCloseTimer) return;
+    this.idleCloseTimer = setTimeout(() => {
+      this.idleCloseTimer = null;
+      if (this.isIdle()) this.disconnect();
+    }, 0);
+  }
+
+  private clearIdleClose(): void {
+    if (this.idleCloseTimer) {
+      clearTimeout(this.idleCloseTimer);
+      this.idleCloseTimer = null;
     }
   }
 
@@ -586,7 +616,8 @@ export class GatewayMuxClient {
   };
 
   private handleConnectionLost(delayOverride?: number): void {
-    if (this.autoReconnect && !this.intentionalDisconnect) {
+    // An idle lazy mux that loses its socket just stays down (see isIdle).
+    if (this.autoReconnect && !this.intentionalDisconnect && !this.isIdle()) {
       this.scheduleReconnect(delayOverride);
       return;
     }
@@ -598,10 +629,11 @@ export class GatewayMuxClient {
 
   private failAuth(reason: string): void {
     this.cleanup();
-    for (const set of this.subscriptions.values()) {
-      for (const subscription of set) subscription.fail(reason);
-    }
+    // Detach the subscriptions before failing them: `fail` unsubscribes, and an
+    // idle-close from `removeSubscription` must not race this teardown.
+    const failed = [...this.subscriptions.values()].flatMap((set) => [...set]);
     this.subscriptions.clear();
+    for (const subscription of failed) subscription.fail(reason);
     this.toolResultQueue = [];
     this.setStatus('disconnected');
     this.rejectWaiters(new Error(`Gateway auth failed: ${reason}`));
@@ -773,6 +805,7 @@ export class GatewayMuxClient {
   }
 
   private cleanup(): void {
+    this.clearIdleClose();
     this.stopHeartbeat();
     this.clearReconnectTimer();
     this.removeBrowserListeners();
