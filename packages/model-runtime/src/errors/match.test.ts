@@ -56,6 +56,14 @@ describe('matchErrorPattern', () => {
     );
   });
 
+  it('classifies the observed DeepSeek buffer rejection as RequestBodyTooLarge', () => {
+    expect(
+      matchErrorPattern({
+        message: 'Failed to buffer the request body: length limit exceeded',
+      })?.code,
+    ).toBe(AgentRuntimeErrorType.RequestBodyTooLarge);
+  });
+
   it('classifies content moderation', () => {
     expect(matchErrorPattern({ message: 'Content Exists Risk' })?.code).toBe(
       AgentRuntimeErrorType.ContentModeration,

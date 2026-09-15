@@ -1004,7 +1004,8 @@ export const ERROR_PATTERNS: ErrorPattern[] = [
   // ─────────────────────────────────────────────────────────────────────────
   {
     code: AgentRuntimeErrorType.RequestBodyTooLarge,
-    match: sub('Failed to buffer request body', { caseInsensitive: true }),
+    match: { kind: 'regex', value: /failed to buffer (?:the )?request body/i },
+    note: 'Observed from DeepSeek Anthropic-compatible HTTP 413 responses.',
   },
   {
     code: AgentRuntimeErrorType.RequestBodyTooLarge,
