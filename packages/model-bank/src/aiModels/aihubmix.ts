@@ -1,4 +1,4 @@
-import { gptImage1Schema, gptImage2Schema } from '../const/imageParameters';
+import { gptImage2Schema } from '../const/imageParameters';
 import type { AIChatModelCard, AIImageModelCard } from '../types/aiModel';
 
 const aihubmixChatModels: AIChatModelCard[] = [
@@ -1369,6 +1369,11 @@ const aihubmixImageModels: AIImageModelCard[] = [
     displayName: 'GPT Image 2.5 Flare',
     enabled: true,
     id: 'gpt-image-2.5-flare',
+    // The probed schema for this model only confirms `size` accepts 'auto' or a
+    // WIDTHxHEIGHT string (gateway validates pixel/aspect/divisibility limits
+    // server-side); it doesn't enumerate which exact sizes are valid. Reusing the
+    // sibling gpt-image-2's already-vetted enum as a known-reasonable default set,
+    // not independently confirmed for this specific model.
     parameters: gptImage2Schema,
     pricing: {
       units: [
@@ -1386,6 +1391,8 @@ const aihubmixImageModels: AIImageModelCard[] = [
     displayName: 'GPT Image 2.5 Sunburst',
     enabled: true,
     id: 'gpt-image-2.5-sunburst',
+    // Same caveat as gpt-image-2.5-flare above: size enum borrowed from the sibling
+    // gpt-image-2 entry, not independently confirmed for this model.
     parameters: gptImage2Schema,
     pricing: {
       units: [
@@ -1403,7 +1410,19 @@ const aihubmixImageModels: AIImageModelCard[] = [
     displayName: 'GPT Image 1.5',
     enabled: true,
     id: 'gpt-image-1.5',
-    parameters: gptImage1Schema,
+    // Not gptImage1Schema: that schema's `size` enum includes the literal 'auto', but the
+    // probed request schema for this model (`/call/schema/models/gpt-image-1.5/endpoints`)
+    // only confirms '1024x1024' | '1536x1024' | '1024x1536' | null — 'auto' is not a
+    // verified accepted value here, so it's dropped to avoid a default that the gateway
+    // may reject.
+    parameters: {
+      imageUrls: { default: [], maxCount: 1, maxFileSize: 5 * 1024 * 1024 },
+      prompt: { default: '' },
+      size: {
+        default: '1024x1024',
+        enum: ['1024x1024', '1536x1024', '1024x1536'],
+      },
+    },
     pricing: {
       units: [
         { name: 'imageInput', rate: 5, strategy: 'fixed', unit: 'millionTokens' },
@@ -1419,6 +1438,9 @@ const aihubmixImageModels: AIImageModelCard[] = [
     displayName: 'Mai Image 2.6',
     enabled: true,
     id: 'mai-image-2.6',
+    // enum values confirmed via the probed request schema; the schema itself declares
+    // no default for `resolution`, so '1K' below is a UI-convenience pick (a value known
+    // to be in the confirmed enum), not a gateway-reported default.
     parameters: {
       imageUrls: { default: [] },
       prompt: { default: '' },
@@ -1439,6 +1461,8 @@ const aihubmixImageModels: AIImageModelCard[] = [
     displayName: 'Mai Image 2.6 Flash',
     enabled: true,
     id: 'mai-image-2.6-flash',
+    // Same caveat as mai-image-2.6 above: '1K' default is a UI-convenience pick, not
+    // gateway-reported.
     parameters: {
       imageUrls: { default: [] },
       prompt: { default: '' },
@@ -1519,9 +1543,18 @@ const aihubmixImageModels: AIImageModelCard[] = [
     displayName: 'GLM Image',
     enabled: true,
     id: 'glm-image',
+    // The probed request schema (`/call/schema/models/glm-image/endpoints`) only lists
+    // `prompt`, `size`, `n`, `model`, `async`, `extra` as top-level fields — `size` there
+    // is a free-form `^\d+x\d+$` pattern with no enum, and there is no top-level
+    // `resolution` or `watermark` field. `resolution`/`watermark` are therefore dropped
+    // here: adding UI controls for fields the gateway doesn't accept as top-level params
+    // risks the request being rejected. The `size` enum below is reused from the
+    // already-vetted native Zhipu entry for the same underlying model
+    // (packages/model-bank/src/aiModels/zhipu.ts) as a known-good subset of sizes — the
+    // gateway probe's own default ('1280x1280') matches it exactly, but the full set of
+    // sizes aihubmix itself accepts beyond this subset is unconfirmed.
     parameters: {
       prompt: { default: '' },
-      resolution: { default: 'hd', enum: ['hd'] },
       size: {
         default: '1280x1280',
         enum: [
@@ -1534,7 +1567,6 @@ const aihubmixImageModels: AIImageModelCard[] = [
           '960x1728',
         ],
       },
-      watermark: { default: false },
     },
     pricing: {
       units: [
@@ -1542,6 +1574,9 @@ const aihubmixImageModels: AIImageModelCard[] = [
         { name: 'imageOutput', rate: 2, strategy: 'fixed', unit: 'millionTokens' },
       ],
     },
+    // The aihubmix `/v1/models` listing has no release_date for this model; this date
+    // matches the repo's own native Zhipu entry (zhipu.ts) for the same model and is
+    // independently corroborated by Zhipu AI's own GLM-Image announcement (2026-01-14).
     releasedAt: '2026-01-14',
     type: 'image',
   },
@@ -1551,6 +1586,9 @@ const aihubmixImageModels: AIImageModelCard[] = [
     displayName: 'Wan2.7 Image',
     enabled: true,
     id: 'wan2.7-image',
+    // enum values confirmed via the probed request schema; the schema itself declares no
+    // default for `aspect_ratio`, so '1:1' below is a UI-convenience pick (a value known
+    // to be in the confirmed enum), not a gateway-reported default.
     parameters: {
       aspectRatio: {
         default: '1:1',
@@ -1574,6 +1612,8 @@ const aihubmixImageModels: AIImageModelCard[] = [
     displayName: 'Wan2.7 Image Pro',
     enabled: true,
     id: 'wan2.7-image-pro',
+    // Same caveat as wan2.7-image above: '1:1' default is a UI-convenience pick, not
+    // gateway-reported.
     parameters: {
       aspectRatio: {
         default: '1:1',
