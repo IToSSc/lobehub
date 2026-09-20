@@ -1,4 +1,4 @@
-import { gptImage2Schema, nanoBanana2LiteParameters } from '../const/imageParameters';
+import { gptImage1Schema, gptImage2Schema } from '../const/imageParameters';
 import type { AIChatModelCard, AIImageModelCard } from '../types/aiModel';
 
 const aihubmixChatModels: AIChatModelCard[] = [
@@ -1363,6 +1363,234 @@ const aihubmixChatModels: AIChatModelCard[] = [
 ];
 
 const aihubmixImageModels: AIImageModelCard[] = [
+  {
+    description:
+      "GPT-Image-2.5 Flare is OpenAI's latest image model, the fastest and suited for everyday high-quality image generation. It accepts text and image inputs and produces image outputs. The model supports quality settings: low, medium, high, xhigh, max, and auto.",
+    displayName: 'GPT Image 2.5 Flare',
+    enabled: true,
+    id: 'gpt-image-2.5-flare',
+    parameters: gptImage2Schema,
+    pricing: {
+      units: [
+        { name: 'imageInput', rate: 5, strategy: 'fixed', unit: 'millionTokens' },
+        { name: 'imageOutput', rate: 30, strategy: 'fixed', unit: 'millionTokens' },
+        { name: 'imageInput_cacheRead', rate: 1.25, strategy: 'fixed', unit: 'millionTokens' },
+      ],
+    },
+    releasedAt: '2026-09-08',
+    type: 'image',
+  },
+  {
+    description:
+      'GPT Image 2.5 Sunburst is OpenAI’s latest image model, capable of generating and editing images from text and image inputs. It is suitable for workflows that require extremely high editing precision. The model supports quality settings: low, medium, high, xhigh, max, and auto.',
+    displayName: 'GPT Image 2.5 Sunburst',
+    enabled: true,
+    id: 'gpt-image-2.5-sunburst',
+    parameters: gptImage2Schema,
+    pricing: {
+      units: [
+        { name: 'imageInput', rate: 5, strategy: 'fixed', unit: 'millionTokens' },
+        { name: 'imageOutput', rate: 30, strategy: 'fixed', unit: 'millionTokens' },
+        { name: 'imageInput_cacheRead', rate: 1.25, strategy: 'fixed', unit: 'millionTokens' },
+      ],
+    },
+    releasedAt: '2026-09-08',
+    type: 'image',
+  },
+  {
+    description:
+      'GPT Image 1.5 is a new image generation model powered by OpenAI’s flagship visual capabilities, comprehensively upgraded for high-quality creative and production workflows. It delivers significant improvements in instruction understanding, fine-grained image editing, and detail preservation, while achieving up to 4x faster generation compared to previous versions.',
+    displayName: 'GPT Image 1.5',
+    enabled: true,
+    id: 'gpt-image-1.5',
+    parameters: gptImage1Schema,
+    pricing: {
+      units: [
+        { name: 'imageInput', rate: 5, strategy: 'fixed', unit: 'millionTokens' },
+        { name: 'imageOutput', rate: 10, strategy: 'fixed', unit: 'millionTokens' },
+      ],
+    },
+    releasedAt: '2025-11-25',
+    type: 'image',
+  },
+  {
+    description:
+      "MAI-Image-2.6 is Microsoft's latest image-generation and editing model. It can generate images from text prompts and supports image-guided editing in multiple aspect ratios.",
+    displayName: 'Mai Image 2.6',
+    enabled: true,
+    id: 'mai-image-2.6',
+    parameters: {
+      imageUrls: { default: [] },
+      prompt: { default: '' },
+      resolution: { default: '1K', enum: ['512', '1K', '2K', '4K'] },
+    },
+    pricing: {
+      units: [
+        { name: 'imageInput', rate: 5, strategy: 'fixed', unit: 'millionTokens' },
+        { name: 'imageOutput', rate: 5, strategy: 'fixed', unit: 'millionTokens' },
+      ],
+    },
+    releasedAt: '2026-09-05',
+    type: 'image',
+  },
+  {
+    description:
+      'MAI-Image-2.6 Flash is Microsoft’s low-latency version of the latest image model MAI-Image-2.6. It supports image generation in multiple aspect ratios and image-guided editing.',
+    displayName: 'Mai Image 2.6 Flash',
+    enabled: true,
+    id: 'mai-image-2.6-flash',
+    parameters: {
+      imageUrls: { default: [] },
+      prompt: { default: '' },
+      resolution: { default: '1K', enum: ['512', '1K', '2K', '4K'] },
+    },
+    pricing: {
+      units: [
+        { name: 'imageInput', rate: 1.75, strategy: 'fixed', unit: 'millionTokens' },
+        { name: 'imageOutput', rate: 1.75, strategy: 'fixed', unit: 'millionTokens' },
+      ],
+    },
+    releasedAt: '2026-09-05',
+    type: 'image',
+  },
+  {
+    description:
+      "Agnes Image 2.1 Flash is Agnes AI's high-performance image generation and image editing model, supporting text-to-image, image-to-image, and multi-image composition. It is suitable for creative design, marketing visuals, e-commerce product images, and social content production.",
+    displayName: 'Agnes Image 2.1 Flash',
+    enabled: true,
+    id: 'agnes-image-2.1-flash',
+    parameters: {
+      aspectRatio: {
+        default: '1:1',
+        enum: ['1:1', '2:3', '3:2', '3:4', '4:3', '9:16', '16:9', '21:9'],
+      },
+      imageUrls: { default: [] },
+      prompt: { default: '' },
+    },
+    pricing: {
+      units: [
+        { name: 'imageInput', rate: 2, strategy: 'fixed', unit: 'millionTokens' },
+        { name: 'imageOutput', rate: 2, strategy: 'fixed', unit: 'millionTokens' },
+      ],
+    },
+    type: 'image',
+  },
+  {
+    description:
+      'The Qwen-Image-2.0 series accelerated models integrate image generation and image editing; they offer more professional text rendering with support for 1k-token instructions, finer realistic textures and delicate portrayal of photorealistic scenes, and stronger semantic adherence. The accelerated version effectively achieves an optimal balance between model quality and performance.',
+    displayName: 'Qwen Image 2.0',
+    enabled: true,
+    id: 'qwen-image-2.0',
+    parameters: {
+      imageUrls: { default: [] },
+      prompt: { default: '' },
+    },
+    pricing: {
+      units: [
+        { name: 'imageInput', rate: 2, strategy: 'fixed', unit: 'millionTokens' },
+        { name: 'imageOutput', rate: 0, strategy: 'fixed', unit: 'millionTokens' },
+      ],
+    },
+    releasedAt: '2026-03-03',
+    type: 'image',
+  },
+  {
+    description:
+      'The Qwen-Image-2.0 full-powered models achieve the integration of image generation and image editing; they offer more professional text rendering with support for 1k-token instructions, more refined photorealistic textures and delicate depiction of realistic scenes, and stronger semantic adherence. The full-powered version delivers the strongest text rendering capability and realism in the 2.0 series.',
+    displayName: 'Qwen Image 2.0 Pro',
+    enabled: true,
+    id: 'qwen-image-2.0-pro',
+    parameters: {
+      imageUrls: { default: [] },
+      prompt: { default: '' },
+    },
+    pricing: {
+      units: [
+        { name: 'imageInput', rate: 2, strategy: 'fixed', unit: 'millionTokens' },
+        { name: 'imageOutput', rate: 0, strategy: 'fixed', unit: 'millionTokens' },
+      ],
+    },
+    releasedAt: '2026-03-03',
+    type: 'image',
+  },
+  {
+    description:
+      'GLM-Image is Zhipu AI’s new flagship image generation model. The model is trained entirely on domestic chips and adopts an original hybrid architecture combining "autoregressive + diffusion decoder," balancing global instruction understanding with local detail depiction. It overcomes generation challenges in knowledge-intensive scenarios such as posters, PPTs, and popular science illustrations.',
+    displayName: 'GLM Image',
+    enabled: true,
+    id: 'glm-image',
+    parameters: {
+      prompt: { default: '' },
+      resolution: { default: 'hd', enum: ['hd'] },
+      size: {
+        default: '1280x1280',
+        enum: [
+          '1280x1280',
+          '1568x1056',
+          '1056x1568',
+          '1472x1088',
+          '1088x1472',
+          '1728x960',
+          '960x1728',
+        ],
+      },
+      watermark: { default: false },
+    },
+    pricing: {
+      units: [
+        { name: 'imageInput', rate: 2, strategy: 'fixed', unit: 'millionTokens' },
+        { name: 'imageOutput', rate: 2, strategy: 'fixed', unit: 'millionTokens' },
+      ],
+    },
+    releasedAt: '2026-01-14',
+    type: 'image',
+  },
+  {
+    description:
+      'Wanxiang 2.7 — image generation and editing: supports text-to-image, text-to-multi-image, image-to-multi-image, image editing, multi-image reference generation, and interactive editing, with stronger performance in text rendering, subject consistency, and following complex instructions.',
+    displayName: 'Wan2.7 Image',
+    enabled: true,
+    id: 'wan2.7-image',
+    parameters: {
+      aspectRatio: {
+        default: '1:1',
+        enum: ['1:1', '2:3', '3:2', '3:4', '4:3', '9:16', '16:9', '21:9', '9:21'],
+      },
+      imageUrls: { default: [] },
+      prompt: { default: '' },
+    },
+    pricing: {
+      units: [
+        { name: 'imageInput', rate: 2, strategy: 'fixed', unit: 'millionTokens' },
+        { name: 'imageOutput', rate: 2, strategy: 'fixed', unit: 'millionTokens' },
+      ],
+    },
+    releasedAt: '2026-05-29',
+    type: 'image',
+  },
+  {
+    description:
+      'Wanxiang 2.7 — image generation and editing: supports text-to-image, text-to-multi-image, image-to-multi-image, image editing, multi-image reference generation, and interactive editing, with stronger performance in text rendering, subject consistency, and following complex instructions.',
+    displayName: 'Wan2.7 Image Pro',
+    enabled: true,
+    id: 'wan2.7-image-pro',
+    parameters: {
+      aspectRatio: {
+        default: '1:1',
+        enum: ['1:1', '2:3', '3:2', '3:4', '4:3', '9:16', '16:9', '21:9', '9:21'],
+      },
+      imageUrls: { default: [] },
+      prompt: { default: '' },
+    },
+    pricing: {
+      units: [
+        { name: 'imageInput', rate: 2, strategy: 'fixed', unit: 'millionTokens' },
+        { name: 'imageOutput', rate: 2, strategy: 'fixed', unit: 'millionTokens' },
+      ],
+    },
+    releasedAt: '2026-05-29',
+    type: 'image',
+  },
 ];
 
 export const allModels = [...aihubmixChatModels, ...aihubmixImageModels];
